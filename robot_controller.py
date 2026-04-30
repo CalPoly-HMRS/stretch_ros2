@@ -133,6 +133,17 @@ class StretchWristTracker:
             (1.0 - alpha) * self._smoothed_error_rad + alpha * raw_error_rad
         )
         return self._smoothed_error_rad
+
+    def _get_wrist_yaw_position(self) -> float | None:
+        """Get current wrist yaw position in radians.
+        
+        Returns:
+            Wrist yaw angle in radians, or None if unavailable.
+        """
+        try:
+            return float(self.robot.end_of_arm.get_joint("wrist_yaw").status["pos"])
+        except Exception:
+            return None
     
     def _command_velocity(self, desired_vel: float) -> None:
         """Command wrist velocity with acceleration limiting.
@@ -165,7 +176,13 @@ class StretchWristTracker:
         Args:
             angle_error_rad: Angle error in radians (positive = rotate left).
         """
-        filtered_error = self._smooth_error(angle_error_rad)
+        error_rad = angle_error_rad
+        if not self.camera_follows_wrist:
+            current_yaw = self._get_wrist_yaw_position()
+            if current_yaw is not None:
+                error_rad = self.wrap_angle(angle_error_rad - current_yaw)
+
+        filtered_error = self._smooth_error(error_rad)
         
         if abs(filtered_error) < self.wrist_deadband_rad:
             self._command_velocity(0.0)
