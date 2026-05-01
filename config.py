@@ -22,8 +22,15 @@ DEVICE_INDEX: int = 1
 # Camera profile selection
 # Format: (width, height, fps, format)
 # Index into sorted profiles list for each device
-CAMERA_PROFILE_HEAD_INDEX: int = 150      # 960x540 @ 60 fps | bgr8
-CAMERA_PROFILE_WRIST_INDEX: int = 18     # 424x240 @ 60 fps | bgr8
+# Wrist camera examples
+#   18  -> 424x240 @ 60 fps | bgr8
+#   54  -> 640x480 @ 30 fps | bgr8
+#   84  -> 1280x720 @ 15 fps | bgr8
+# Head camera examples
+#   150 -> 960x540 @ 60 fps | bgr8
+#   186 -> 1920x1080 @ 30 fps | bgr8
+CAMERA_PROFILE_HEAD_INDEX: int = 150
+CAMERA_PROFILE_WRIST_INDEX: int = 18
 
 # Wrist tracking parameters
 COMMAND_HZ: float = 20.0

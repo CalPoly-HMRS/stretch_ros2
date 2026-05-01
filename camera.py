@@ -12,25 +12,20 @@ class CameraManager:
     def __init__(
         self,
         device_index: int = 1,
-        target_width: int = 424,
-        target_height: int = 240,
-        target_fps: int = 60,
-        fmt: rs.format = rs.format.bgr8,
+        profile_index: int = 0,
     ) -> None:
         """Initialize camera manager.
         
         Args:
             device_index: Index of RealSense device to use (0, 1, etc.).
-            target_width: Desired image width in pixels.
-            target_height: Desired image height in pixels.
-            target_fps: Desired frame rate in Hz.
-            fmt: OpenCV format for frames (rs.format.bgr8, etc.).
+            profile_index: Index into the sorted list of color stream profiles.
         """
         self.device_index = device_index
-        self.target_width = target_width
-        self.target_height = target_height
-        self.target_fps = target_fps
-        self.target_fmt = fmt
+        self.profile_index = profile_index
+        self.target_width = 0
+        self.target_height = 0
+        self.target_fps = 0
+        self.target_fmt = rs.format.bgr8
         
         self.pipeline: rs.pipeline | None = None
         self.selected_serial: str | None = None
@@ -55,6 +50,33 @@ class CameraManager:
         
         device = devices[self.device_index]
         self.selected_serial = device.get_info(rs.camera_info.serial_number)
+
+        profiles: set[tuple[int, int, int, rs.format]] = set()
+        for sensor in device.sensors:
+            for profile in sensor.get_stream_profiles():
+                if profile.stream_type() != rs.stream.color:
+                    continue
+                try:
+                    fmt = profile.format()
+                    vprofile = profile.as_video_stream_profile()
+                    profiles.add((vprofile.width(), vprofile.height(), vprofile.fps(), fmt))
+                except RuntimeError:
+                    continue
+
+        sorted_profiles = sorted(profiles, key=lambda x: (x[0] * x[1], x[2], str(x[3])))
+        if not sorted_profiles:
+            print("No color stream profiles found for the selected device.")
+            return False
+
+        if self.profile_index < 0 or self.profile_index >= len(sorted_profiles):
+            print(
+                f"Profile index {self.profile_index} out of range. Found {len(sorted_profiles)} profiles."
+            )
+            return False
+
+        self.target_width, self.target_height, self.target_fps, self.target_fmt = sorted_profiles[
+            self.profile_index
+        ]
         
         self.pipeline = rs.pipeline()
         config = rs.config()

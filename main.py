@@ -23,11 +23,14 @@ def main() -> int:
         Exit code (0 for success, 1 for error).
     """
     # Initialize camera
+    profile_index = (
+        config.CAMERA_PROFILE_WRIST_INDEX
+        if config.DEVICE_INDEX == 1
+        else config.CAMERA_PROFILE_HEAD_INDEX
+    )
     camera = CameraManager(
         device_index=config.DEVICE_INDEX,
-        target_width=config.CAMERA_PROFILE_WRIST_INDEX if config.DEVICE_INDEX == 1 else 960,
-        target_height=240 if config.DEVICE_INDEX == 1 else 540,
-        target_fps=60,
+        profile_index=profile_index,
     )
     
     if not camera.initialize():
