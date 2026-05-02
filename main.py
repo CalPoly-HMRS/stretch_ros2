@@ -181,6 +181,10 @@ def main() -> int:
             wrist_yaw = None
             if config.SHOW_WRIST_YAW:
                 wrist_yaw = tracker.get_wrist_yaw_position()
+            pre_guard_vel = None
+            post_guard_vel = None
+            if config.SHOW_VELOCITY_DEBUG:
+                pre_guard_vel, post_guard_vel = tracker.get_velocity_debug()
             visualizer.draw_hud(
                 image,
                 measured_fps,
@@ -190,6 +194,8 @@ def main() -> int:
                 angle_error=angle_error,
                 wrist_yaw=wrist_yaw,
                 tvec=tvec,
+                pre_guard_vel=pre_guard_vel,
+                post_guard_vel=post_guard_vel,
                 show_fps=config.SHOW_FPS,
                 show_marker_count=config.SHOW_MARKER_COUNT,
                 show_status=config.SHOW_STATUS,
@@ -197,6 +203,7 @@ def main() -> int:
                 show_angle_error=config.SHOW_ANGLE_ERROR,
                 show_wrist_yaw=config.SHOW_WRIST_YAW,
                 show_tvec=config.SHOW_TVEC,
+                show_velocity_debug=config.SHOW_VELOCITY_DEBUG,
             )
             
             # Display frame

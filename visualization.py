@@ -125,6 +125,8 @@ class Visualizer:
         angle_error: float | None = None,
         wrist_yaw: float | None = None,
         tvec: np.ndarray | None = None,
+        pre_guard_vel: float | None = None,
+        post_guard_vel: float | None = None,
         show_fps: bool = True,
         show_marker_count: bool = True,
         show_status: bool = True,
@@ -132,6 +134,7 @@ class Visualizer:
         show_angle_error: bool = True,
         show_wrist_yaw: bool = True,
         show_tvec: bool = True,
+        show_velocity_debug: bool = True,
     ) -> None:
         """Draw complete HUD (heads-up display) on image.
         
@@ -185,6 +188,15 @@ class Visualizer:
             tx, ty, tz = float(tvec[0]), float(tvec[1]), float(tvec[2])
             tvec_text = f"tvec (x,y,z): {tx:+.3f}, {ty:+.3f}, {tz:+.3f}"
             self.draw_text(image, tvec_text, (10, y_pos), (0, 180, 255))
+            y_pos += y_step
+
+        if show_velocity_debug and pre_guard_vel is not None and post_guard_vel is not None:
+            self.draw_text(
+                image,
+                f"Vel pre/post: {pre_guard_vel:+.3f} / {post_guard_vel:+.3f}",
+                (10, y_pos),
+                (180, 180, 255),
+            )
     
     def show_frame(self, image: np.ndarray) -> bool:
         """Display frame and check for quit signal.

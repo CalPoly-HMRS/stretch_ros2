@@ -94,3 +94,4 @@ SHOW_SELECTED_ID: bool = True
 SHOW_ANGLE_ERROR: bool = True
 SHOW_TVEC: bool = False
 SHOW_WRIST_YAW: bool = True
+SHOW_VELOCITY_DEBUG: bool = False

@@ -68,6 +68,8 @@ class StretchWristTracker:
         self._smoothed_error_rad = 0.0
         self._last_cmd_vel = 0.0
         self._last_seen_time_s = 0.0
+        self._last_pre_guard_vel = 0.0
+        self._last_post_guard_vel = 0.0
     
     def clamp_wrist_yaw_error(self, current_yaw: float, error_rad: float) -> float:
         """Clamp yaw error so target stays within joint limits.
@@ -227,18 +229,28 @@ class StretchWristTracker:
             return
         
         desired_vel = self.wrist_direction_sign * self.control_kp * filtered_error
+        self._last_pre_guard_vel = desired_vel
         if current_yaw is not None:
             desired_vel = self._apply_yaw_limit_velocity_guard(current_yaw, desired_vel)
+        self._last_post_guard_vel = desired_vel
         self._command_velocity(desired_vel)
         self._last_seen_time_s = time.time()
     
     def command_stop(self) -> None:
         """Stop wrist motion immediately."""
+        self._last_pre_guard_vel = 0.0
+        self._last_post_guard_vel = 0.0
         self._command_velocity(0.0)
     
     def shutdown(self) -> None:
         """Stop wrist and shut down robot connection."""
         try:
+            self._last_pre_guard_vel = 0.0
+            self._last_post_guard_vel = 0.0
             self._send_wrist_velocity(0.0)
         finally:
             self.robot.stop()
+
+    def get_velocity_debug(self) -> tuple[float, float]:
+        """Get pre-guard and post-guard velocity commands."""
+        return self._last_pre_guard_vel, self._last_post_guard_vel
