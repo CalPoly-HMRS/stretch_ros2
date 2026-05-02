@@ -151,6 +151,10 @@ class StretchWristTracker:
             return float(self.robot.end_of_arm.get_joint("wrist_yaw").status["pos"])
         except Exception:
             return None
+
+    def get_wrist_yaw_position(self) -> float | None:
+        """Public accessor for wrist yaw position in radians."""
+        return self._get_wrist_yaw_position()
     
     def _command_velocity(self, desired_vel: float) -> None:
         """Command wrist velocity with acceleration limiting.

@@ -123,7 +123,15 @@ class Visualizer:
         status: str,
         selected_id: int | None = None,
         angle_error: float | None = None,
+        wrist_yaw: float | None = None,
         tvec: np.ndarray | None = None,
+        show_fps: bool = True,
+        show_marker_count: bool = True,
+        show_status: bool = True,
+        show_selected_id: bool = True,
+        show_angle_error: bool = True,
+        show_wrist_yaw: bool = True,
+        show_tvec: bool = True,
     ) -> None:
         """Draw complete HUD (heads-up display) on image.
         
@@ -138,21 +146,24 @@ class Visualizer:
         """
         y_pos = 28
         y_step = 28
-        
-        self.draw_text(image, f"Measured FPS: {fps:.1f}", (10, y_pos), (0, 255, 0))
-        y_pos += y_step
-        
-        self.draw_text(image, f"Markers: {marker_count}", (10, y_pos), (0, 255, 255))
-        y_pos += y_step
-        
-        self.draw_text(image, f"Status: {status}", (10, y_pos), (255, 255, 0))
-        y_pos += y_step
-        
-        if selected_id is not None:
+
+        if show_fps:
+            self.draw_text(image, f"Measured FPS: {fps:.1f}", (10, y_pos), (0, 255, 0))
+            y_pos += y_step
+
+        if show_marker_count:
+            self.draw_text(image, f"Markers: {marker_count}", (10, y_pos), (0, 255, 255))
+            y_pos += y_step
+
+        if show_status:
+            self.draw_text(image, f"Status: {status}", (10, y_pos), (255, 255, 0))
+            y_pos += y_step
+
+        if show_selected_id and selected_id is not None:
             self.draw_text(image, f"Selected ID: {selected_id}", (10, y_pos), (255, 200, 0))
             y_pos += y_step
-        
-        if angle_error is not None:
+
+        if show_angle_error and angle_error is not None:
             self.draw_text(
                 image,
                 f"Angle error (rad): {angle_error:+.3f}",
@@ -160,8 +171,17 @@ class Visualizer:
                 (0, 200, 255),
             )
             y_pos += y_step
-        
-        if tvec is not None:
+
+        if show_wrist_yaw and wrist_yaw is not None:
+            self.draw_text(
+                image,
+                f"Wrist yaw (rad): {wrist_yaw:+.3f}",
+                (10, y_pos),
+                (0, 180, 180),
+            )
+            y_pos += y_step
+
+        if show_tvec and tvec is not None:
             tx, ty, tz = float(tvec[0]), float(tvec[1]), float(tvec[2])
             tvec_text = f"tvec (x,y,z): {tx:+.3f}, {ty:+.3f}, {tz:+.3f}"
             self.draw_text(image, tvec_text, (10, y_pos), (0, 180, 255))

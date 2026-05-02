@@ -82,3 +82,12 @@ CAMERA_TIMEOUT_MS: int = 1500
 # Visualization parameters
 ERROR_VISUALIZATION_LENGTH: int = 100
 AXIS_LENGTH: float = 0.025  # Half of marker size
+
+# HUD options
+SHOW_FPS: bool = True
+SHOW_MARKER_COUNT: bool = False
+SHOW_STATUS: bool = True
+SHOW_SELECTED_ID: bool = True
+SHOW_ANGLE_ERROR: bool = True
+SHOW_TVEC: bool = False
+SHOW_WRIST_YAW: bool = True

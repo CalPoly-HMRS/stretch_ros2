@@ -177,6 +177,9 @@ def main() -> int:
             
             # Draw HUD
             status = "TRACKING" if angle_error is not None else "SEARCHING"
+            wrist_yaw = None
+            if config.SHOW_WRIST_YAW:
+                wrist_yaw = tracker.get_wrist_yaw_position()
             visualizer.draw_hud(
                 image,
                 measured_fps,
@@ -184,7 +187,15 @@ def main() -> int:
                 status,
                 selected_id=selected_id,
                 angle_error=angle_error,
+                wrist_yaw=wrist_yaw,
                 tvec=tvec,
+                show_fps=config.SHOW_FPS,
+                show_marker_count=config.SHOW_MARKER_COUNT,
+                show_status=config.SHOW_STATUS,
+                show_selected_id=config.SHOW_SELECTED_ID,
+                show_angle_error=config.SHOW_ANGLE_ERROR,
+                show_wrist_yaw=config.SHOW_WRIST_YAW,
+                show_tvec=config.SHOW_TVEC,
             )
             
             # Display frame
