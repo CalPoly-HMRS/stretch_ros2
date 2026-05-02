@@ -127,6 +127,7 @@ class Visualizer:
         tvec: np.ndarray | None = None,
         pre_guard_vel: float | None = None,
         post_guard_vel: float | None = None,
+        yaw_limits: tuple[float, float] | None = None,
         show_fps: bool = True,
         show_marker_count: bool = True,
         show_status: bool = True,
@@ -135,6 +136,7 @@ class Visualizer:
         show_wrist_yaw: bool = True,
         show_tvec: bool = True,
         show_velocity_debug: bool = True,
+        show_yaw_limits: bool = True,
     ) -> None:
         """Draw complete HUD (heads-up display) on image.
         
@@ -196,6 +198,16 @@ class Visualizer:
                 f"Vel pre/post: {pre_guard_vel:+.3f} / {post_guard_vel:+.3f}",
                 (10, y_pos),
                 (180, 180, 255),
+            )
+            y_pos += y_step
+
+        if show_yaw_limits and yaw_limits is not None:
+            min_limit, max_limit = yaw_limits
+            self.draw_text(
+                image,
+                f"Yaw limits (rad): {min_limit:+.3f} / {max_limit:+.3f}",
+                (10, y_pos),
+                (180, 220, 160),
             )
     
     def show_frame(self, image: np.ndarray) -> bool:

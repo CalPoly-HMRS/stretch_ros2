@@ -95,3 +95,4 @@ SHOW_ANGLE_ERROR: bool = True
 SHOW_TVEC: bool = False
 SHOW_WRIST_YAW: bool = True
 SHOW_VELOCITY_DEBUG: bool = False
+SHOW_YAW_LIMITS: bool = False

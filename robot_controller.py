@@ -264,3 +264,12 @@ class StretchWristTracker:
     def get_velocity_debug(self) -> tuple[float, float]:
         """Get pre-guard and post-guard velocity commands."""
         return self._last_pre_guard_vel, self._last_post_guard_vel
+
+    def get_yaw_limits(self) -> tuple[float, float]:
+        """Get current yaw limits with buffer applied."""
+        min_limit = self.wrist_yaw_min_rad + self.wrist_yaw_limit_buffer_rad
+        max_limit = self.wrist_yaw_max_rad - self.wrist_yaw_limit_buffer_rad
+        if min_limit >= max_limit:
+            min_limit = self.wrist_yaw_min_rad
+            max_limit = self.wrist_yaw_max_rad
+        return min_limit, max_limit

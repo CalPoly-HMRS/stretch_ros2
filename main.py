@@ -185,6 +185,9 @@ def main() -> int:
             post_guard_vel = None
             if config.SHOW_VELOCITY_DEBUG:
                 pre_guard_vel, post_guard_vel = tracker.get_velocity_debug()
+            yaw_limits = None
+            if config.SHOW_YAW_LIMITS:
+                yaw_limits = tracker.get_yaw_limits()
             visualizer.draw_hud(
                 image,
                 measured_fps,
@@ -196,6 +199,7 @@ def main() -> int:
                 tvec=tvec,
                 pre_guard_vel=pre_guard_vel,
                 post_guard_vel=post_guard_vel,
+                yaw_limits=yaw_limits,
                 show_fps=config.SHOW_FPS,
                 show_marker_count=config.SHOW_MARKER_COUNT,
                 show_status=config.SHOW_STATUS,
@@ -204,6 +208,7 @@ def main() -> int:
                 show_wrist_yaw=config.SHOW_WRIST_YAW,
                 show_tvec=config.SHOW_TVEC,
                 show_velocity_debug=config.SHOW_VELOCITY_DEBUG,
+                show_yaw_limits=config.SHOW_YAW_LIMITS,
             )
             
             # Display frame
