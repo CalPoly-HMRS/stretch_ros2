@@ -79,9 +79,14 @@ class StretchWristTracker:
         Returns:
             Clamped yaw error in radians.
         """
-        min_error = self.wrist_yaw_min_rad - current_yaw
-        max_error = self.wrist_yaw_max_rad - current_yaw
-        return float(np.clip(error_rad, min_error, max_error))
+        min_limit = self.wrist_yaw_min_rad + self.wrist_yaw_limit_buffer_rad
+        max_limit = self.wrist_yaw_max_rad - self.wrist_yaw_limit_buffer_rad
+        if min_limit >= max_limit:
+            min_limit = self.wrist_yaw_min_rad
+            max_limit = self.wrist_yaw_max_rad
+
+        target_yaw = float(np.clip(current_yaw + error_rad, min_limit, max_limit))
+        return target_yaw - current_yaw
 
     def _apply_yaw_limit_velocity_guard(self, current_yaw: float, desired_vel: float) -> float:
         """Stop velocity that would push past yaw limits."""
@@ -205,6 +210,15 @@ class StretchWristTracker:
             if not self.camera_follows_wrist:
                 error_rad = angle_error_rad - current_yaw
             error_rad = self.clamp_wrist_yaw_error(current_yaw, error_rad)
+
+            min_limit = self.wrist_yaw_min_rad + self.wrist_yaw_limit_buffer_rad
+            max_limit = self.wrist_yaw_max_rad - self.wrist_yaw_limit_buffer_rad
+            if current_yaw <= min_limit and error_rad < 0.0:
+                error_rad = 0.0
+                self._smoothed_error_rad = 0.0
+            elif current_yaw >= max_limit and error_rad > 0.0:
+                error_rad = 0.0
+                self._smoothed_error_rad = 0.0
 
         filtered_error = self._smooth_error(error_rad)
         
