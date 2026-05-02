@@ -40,21 +40,30 @@ WRIST_DEADBAND_RAD_WITH_CAMERA_FOLLOW: float = 0.01
 WRIST_DEADBAND_RAD_WITHOUT_CAMERA_FOLLOW: float = 0.012
 
 # Joint limits (approximate; tune to your robot)
-WRIST_YAW_MIN_RAD: float = -1.39
-WRIST_YAW_MAX_RAD: float = 4.42
-WRIST_PITCH_MIN_RAD: float = -1.57
-WRIST_PITCH_MAX_RAD: float = 0.57
-WRIST_ROLL_MIN_RAD: float = -3.14
-WRIST_ROLL_MAX_RAD: float = 3.14
+# WRIST_YAW_MIN_RAD: float = -1.39
+# WRIST_YAW_MAX_RAD: float = 4.42
+# WRIST_PITCH_MIN_RAD: float = -1.57
+# WRIST_PITCH_MAX_RAD: float = 0.57
+# WRIST_ROLL_MIN_RAD: float = -3.14
+# WRIST_ROLL_MAX_RAD: float = 3.14
+
+# EXTRA SAFETY MARGIN: Reduce max angles by this amount to avoid hitting hard limits
+SAFETY_MARGIN_RAD: float = 0.1
+WRIST_YAW_MIN_RAD: float = -1.39 + SAFETY_MARGIN_RAD
+WRIST_YAW_MAX_RAD: float = 4.42 - SAFETY_MARGIN_RAD
+WRIST_PITCH_MIN_RAD: float = -1.57 + SAFETY_MARGIN_RAD
+WRIST_PITCH_MAX_RAD: float = 0.57 - SAFETY_MARGIN_RAD
+WRIST_ROLL_MIN_RAD: float = -3.14 + SAFETY_MARGIN_RAD
+WRIST_ROLL_MAX_RAD: float = 3.14 - SAFETY_MARGIN_RAD
 ARM_MIN_M: float = 0.0
 ARM_MAX_M: float = 0.52
 LIFT_MIN_M: float = 0.0
 LIFT_MAX_M: float = 1.1
 
 # Velocity control gains
-CONTROL_KP: float = 2.0
+CONTROL_KP: float = 4.0
 MAX_WRIST_SPEED_RAD_S: float = 1.8
-MAX_WRIST_ACCEL_RAD_S2: float = 6.0
+MAX_WRIST_ACCEL_RAD_S2: float = 4.0
 ERROR_SMOOTHING_ALPHA: float = 0.25
 
 # Robot initialization pose
