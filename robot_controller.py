@@ -24,6 +24,7 @@ class StretchWristTracker:
         deadband_rad: float = 0.012,
         wrist_yaw_min_rad: float = -1.39,
         wrist_yaw_max_rad: float = 4.42,
+        wrist_yaw_limit_buffer_rad: float = 0.0,
         control_kp: float = 2.0,
         max_wrist_speed_rad_s: float = 1.8,
         max_wrist_accel_rad_s2: float = 6.0,
@@ -38,6 +39,7 @@ class StretchWristTracker:
             deadband_rad: Angle error threshold below which wrist stops moving.
             wrist_yaw_min_rad: Minimum wrist yaw angle in radians.
             wrist_yaw_max_rad: Maximum wrist yaw angle in radians.
+            wrist_yaw_limit_buffer_rad: Buffer before yaw limits to stop motion.
             control_kp: Proportional control gain.
             max_wrist_speed_rad_s: Maximum wrist velocity in rad/s.
             max_wrist_accel_rad_s2: Maximum wrist acceleration in rad/s².
@@ -55,6 +57,7 @@ class StretchWristTracker:
         self.wrist_direction_sign = wrist_direction_sign
         self.wrist_yaw_min_rad = wrist_yaw_min_rad
         self.wrist_yaw_max_rad = wrist_yaw_max_rad
+        self.wrist_yaw_limit_buffer_rad = max(0.0, wrist_yaw_limit_buffer_rad)
         self.control_kp = control_kp
         self.max_wrist_speed_rad_s = max_wrist_speed_rad_s
         self.max_wrist_accel_rad_s2 = max_wrist_accel_rad_s2
@@ -76,12 +79,21 @@ class StretchWristTracker:
         Returns:
             Clamped yaw error in radians.
         """
-        target_yaw = current_yaw + error_rad
-        if target_yaw < self.wrist_yaw_min_rad:
-            return self.wrist_yaw_min_rad - current_yaw
-        if target_yaw > self.wrist_yaw_max_rad:
-            return self.wrist_yaw_max_rad - current_yaw
-        return error_rad
+        min_error = self.wrist_yaw_min_rad - current_yaw
+        max_error = self.wrist_yaw_max_rad - current_yaw
+        return float(np.clip(error_rad, min_error, max_error))
+
+    def _apply_yaw_limit_velocity_guard(self, current_yaw: float, desired_vel: float) -> float:
+        """Stop velocity that would push past yaw limits."""
+        buffer_rad = self.wrist_yaw_limit_buffer_rad
+        min_limit = self.wrist_yaw_min_rad + buffer_rad
+        max_limit = self.wrist_yaw_max_rad - buffer_rad
+
+        if current_yaw <= min_limit and desired_vel < 0.0:
+            return 0.0
+        if current_yaw >= max_limit and desired_vel > 0.0:
+            return 0.0
+        return desired_vel
     
     def initialize_robot(self) -> None:
         """Connect to robot hardware and initialize pose.
@@ -201,6 +213,8 @@ class StretchWristTracker:
             return
         
         desired_vel = self.wrist_direction_sign * self.control_kp * filtered_error
+        if current_yaw is not None:
+            desired_vel = self._apply_yaw_limit_velocity_guard(current_yaw, desired_vel)
         self._command_velocity(desired_vel)
         self._last_seen_time_s = time.time()
     

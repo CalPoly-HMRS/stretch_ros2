@@ -60,6 +60,9 @@ ARM_MAX_M: float = 0.52
 LIFT_MIN_M: float = 0.0
 LIFT_MAX_M: float = 1.1
 
+# Stop velocity before crossing the yaw limit.
+WRIST_YAW_LIMIT_BUFFER_RAD: float = 0.03
+
 # Velocity control gains
 CONTROL_KP: float = 4.0
 MAX_WRIST_SPEED_RAD_S: float = 1.8

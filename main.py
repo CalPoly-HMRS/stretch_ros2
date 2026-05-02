@@ -72,6 +72,7 @@ def main() -> int:
             deadband_rad=deadband,
             wrist_yaw_min_rad=config.WRIST_YAW_MIN_RAD,
             wrist_yaw_max_rad=config.WRIST_YAW_MAX_RAD,
+            wrist_yaw_limit_buffer_rad=config.WRIST_YAW_LIMIT_BUFFER_RAD,
             control_kp=config.CONTROL_KP,
             max_wrist_speed_rad_s=config.MAX_WRIST_SPEED_RAD_S,
             max_wrist_accel_rad_s2=config.MAX_WRIST_ACCEL_RAD_S2,
