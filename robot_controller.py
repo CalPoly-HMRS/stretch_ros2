@@ -208,25 +208,33 @@ class StretchWristTracker:
         """
         error_rad = angle_error_rad
         current_yaw = self._get_wrist_yaw_position()
+        outside_limits = False
         if current_yaw is not None:
             min_limit = self.wrist_yaw_min_rad + self.wrist_yaw_limit_buffer_rad
             max_limit = self.wrist_yaw_max_rad - self.wrist_yaw_limit_buffer_rad
-            if current_yaw < min_limit or current_yaw > max_limit:
-                self._smoothed_error_rad = 0.0
+            outside_limits = current_yaw < min_limit or current_yaw > max_limit
 
             if not self.camera_follows_wrist:
                 error_rad = angle_error_rad - current_yaw
-            error_rad = self.clamp_wrist_yaw_error(current_yaw, error_rad)
-            if current_yaw <= min_limit and error_rad < 0.0:
-                error_rad = 0.0
-                self._smoothed_error_rad = 0.0
-            elif current_yaw >= max_limit and error_rad > 0.0:
-                error_rad = 0.0
-                self._smoothed_error_rad = 0.0
 
-        filtered_error = self._smooth_error(error_rad)
+            if outside_limits:
+                self._smoothed_error_rad = 0.0
+                if current_yaw < min_limit:
+                    error_rad = min_limit - current_yaw
+                else:
+                    error_rad = max_limit - current_yaw
+            else:
+                error_rad = self.clamp_wrist_yaw_error(current_yaw, error_rad)
+                if current_yaw <= min_limit and error_rad < 0.0:
+                    error_rad = 0.0
+                    self._smoothed_error_rad = 0.0
+                elif current_yaw >= max_limit and error_rad > 0.0:
+                    error_rad = 0.0
+                    self._smoothed_error_rad = 0.0
+
+        filtered_error = error_rad if outside_limits else self._smooth_error(error_rad)
         
-        if abs(filtered_error) < self.wrist_deadband_rad:
+        if not outside_limits and abs(filtered_error) < self.wrist_deadband_rad:
             self._command_velocity(0.0)
             return
         
