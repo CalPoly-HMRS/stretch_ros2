@@ -22,6 +22,8 @@ class StretchWristTracker:
         camera_follows_wrist: bool = False,
         wrist_direction_sign: float = -1.0,
         deadband_rad: float = 0.012,
+        wrist_yaw_min_rad: float = -1.39,
+        wrist_yaw_max_rad: float = 4.42,
         control_kp: float = 2.0,
         max_wrist_speed_rad_s: float = 1.8,
         max_wrist_accel_rad_s2: float = 6.0,
@@ -34,6 +36,8 @@ class StretchWristTracker:
             camera_follows_wrist: Whether camera follows wrist motion.
             wrist_direction_sign: Direction multiplier for wrist rotation (+1 or -1).
             deadband_rad: Angle error threshold below which wrist stops moving.
+            wrist_yaw_min_rad: Minimum wrist yaw angle in radians.
+            wrist_yaw_max_rad: Maximum wrist yaw angle in radians.
             control_kp: Proportional control gain.
             max_wrist_speed_rad_s: Maximum wrist velocity in rad/s.
             max_wrist_accel_rad_s2: Maximum wrist acceleration in rad/s².
@@ -49,6 +53,8 @@ class StretchWristTracker:
         
         self.wrist_deadband_rad = deadband_rad
         self.wrist_direction_sign = wrist_direction_sign
+        self.wrist_yaw_min_rad = wrist_yaw_min_rad
+        self.wrist_yaw_max_rad = wrist_yaw_max_rad
         self.control_kp = control_kp
         self.max_wrist_speed_rad_s = max_wrist_speed_rad_s
         self.max_wrist_accel_rad_s2 = max_wrist_accel_rad_s2
@@ -60,21 +66,22 @@ class StretchWristTracker:
         self._last_cmd_vel = 0.0
         self._last_seen_time_s = 0.0
     
-    @staticmethod
-    def wrap_angle(angle: float) -> float:
-        """Wrap angle to [-π, π] range.
+    def clamp_wrist_yaw_error(self, current_yaw: float, error_rad: float) -> float:
+        """Clamp yaw error so target stays within joint limits.
         
         Args:
-            angle: Input angle in radians.
+            current_yaw: Current wrist yaw angle in radians.
+            error_rad: Desired yaw error in radians.
         
         Returns:
-            Angle wrapped to [-π, π].
+            Clamped yaw error in radians.
         """
-        while angle > pi:
-            angle -= 2.0 * pi
-        while angle < -pi:
-            angle += 2.0 * pi
-        return angle
+        target_yaw = current_yaw + error_rad
+        if target_yaw < self.wrist_yaw_min_rad:
+            return self.wrist_yaw_min_rad - current_yaw
+        if target_yaw > self.wrist_yaw_max_rad:
+            return self.wrist_yaw_max_rad - current_yaw
+        return error_rad
     
     def initialize_robot(self) -> None:
         """Connect to robot hardware and initialize pose.
@@ -177,10 +184,11 @@ class StretchWristTracker:
             angle_error_rad: Angle error in radians (positive = rotate left).
         """
         error_rad = angle_error_rad
-        if not self.camera_follows_wrist:
-            current_yaw = self._get_wrist_yaw_position()
-            if current_yaw is not None:
-                error_rad = self.wrap_angle(angle_error_rad - current_yaw)
+        current_yaw = self._get_wrist_yaw_position()
+        if current_yaw is not None:
+            if not self.camera_follows_wrist:
+                error_rad = angle_error_rad - current_yaw
+            error_rad = self.clamp_wrist_yaw_error(current_yaw, error_rad)
 
         filtered_error = self._smooth_error(error_rad)
         

@@ -1,5 +1,7 @@
 """Configuration and constants for ArUco tracking."""
 
+# https://docs.hello-robot.com/latest/python/moving/
+
 from __future__ import annotations
 
 from math import pi
@@ -36,6 +38,18 @@ CAMERA_PROFILE_WRIST_INDEX: int = 18
 COMMAND_HZ: float = 20.0
 WRIST_DEADBAND_RAD_WITH_CAMERA_FOLLOW: float = 0.01
 WRIST_DEADBAND_RAD_WITHOUT_CAMERA_FOLLOW: float = 0.012
+
+# Joint limits (approximate; tune to your robot)
+WRIST_YAW_MIN_RAD: float = -1.39
+WRIST_YAW_MAX_RAD: float = 4.42
+WRIST_PITCH_MIN_RAD: float = -1.57
+WRIST_PITCH_MAX_RAD: float = 0.57
+WRIST_ROLL_MIN_RAD: float = -3.14
+WRIST_ROLL_MAX_RAD: float = 3.14
+ARM_MIN_M: float = 0.0
+ARM_MAX_M: float = 0.52
+LIFT_MIN_M: float = 0.0
+LIFT_MAX_M: float = 1.1
 
 # Velocity control gains
 CONTROL_KP: float = 2.0
