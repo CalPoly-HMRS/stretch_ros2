@@ -10,9 +10,15 @@ import cv2
 import numpy as np
 
 import config
-from aruco_detector import ArucoDetector, compute_selected_marker_angle, rotate_camera_matrix_90_clockwise
+from aruco_detector import (
+    ArucoDetector,
+    compute_selected_marker_angle,
+    estimate_single_marker_pose,
+    rotate_camera_matrix_90_clockwise,
+)
 from camera import CameraManager
 from robot_controller import StretchWristTracker
+from tf_publisher import TfLookupHelper, TfPublisher, TfPublisherConfig
 from visualization import Visualizer
 
 
@@ -55,6 +61,41 @@ def main() -> int:
     
     # Initialize ArUco detector
     detector = ArucoDetector()
+
+    # Initialize ROS2 TF publisher (optional)
+    tf_node = None
+    tf_publisher = None
+    tf_lookup = None
+    rclpy = None
+    if config.ENABLE_TF:
+        try:
+            import rclpy as _rclpy
+
+            rclpy = _rclpy
+            rclpy.init(args=None)
+            tf_node = rclpy.create_node("aruco_tf_publisher")
+
+            camera_frame_id = (
+                config.CAMERA_FRAME_ID_WRIST
+                if config.DEVICE_INDEX == 1
+                else config.CAMERA_FRAME_ID_HEAD
+            )
+            tf_publisher = TfPublisher(
+                tf_node,
+                TfPublisherConfig(
+                    base_frame_id=config.BASE_FRAME_ID,
+                    camera_frame_id=camera_frame_id,
+                    marker_frame_prefix=config.MARKER_FRAME_PREFIX,
+                    publish_base_to_camera_identity=config.PUBLISH_BASE_TO_CAMERA_IDENTITY,
+                ),
+            )
+            if config.ENABLE_TF_LOOKUP:
+                tf_lookup = TfLookupHelper(tf_node)
+        except Exception as exc:
+            print(f"TF publishing disabled (ROS2 not available): {exc}")
+            tf_node = None
+            tf_publisher = None
+            tf_lookup = None
     
     # Initialize robot controller
     try:
@@ -126,6 +167,13 @@ def main() -> int:
             
             # Draw detected markers
             visualizer.draw_detected_markers(image, corners, ids)
+
+            # Publish TF frames (if enabled)
+            if tf_publisher is not None and tf_node is not None:
+                if rclpy is not None and tf_lookup is not None:
+                    rclpy.spin_once(tf_node, timeout_sec=0.0)
+                stamp = tf_node.get_clock().now().to_msg()
+                tf_publisher.publish_base_to_camera_identity(stamp)
             
             # Compute tracking
             selected_id = None
@@ -142,8 +190,49 @@ def main() -> int:
                     config.MARKER_SIZE_M,
                     tuple(config.TARGET_TAG_IDS),
                 )
+
+                if tf_publisher is not None and tf_node is not None:
+                    if config.PUBLISH_ALL_MARKERS and ids is not None:
+                        flat_ids = ids.flatten().tolist()
+                        for i, marker_id in enumerate(flat_ids):
+                            marker_corners = np.array(corners[i], dtype=np.float32)
+                            marker_rvec, marker_tvec = estimate_single_marker_pose(
+                                marker_corners,
+                                config.MARKER_SIZE_M,
+                                pose_camera_matrix,
+                                dist_coeffs,
+                            )
+                            if marker_rvec is not None and marker_tvec is not None:
+                                tf_publisher.publish_marker(
+                                    marker_id,
+                                    marker_rvec,
+                                    marker_tvec,
+                                    stamp,
+                                )
+                    elif rvec is not None and tvec is not None and selected_id is not None:
+                        tf_publisher.publish_marker(selected_id, rvec, tvec, stamp)
                 
-                if angle_error is not None:
+                used_tf_control = False
+                if (
+                    config.USE_TF_FOR_CONTROL
+                    and tf_lookup is not None
+                    and selected_id is not None
+                ):
+                    marker_frame = f"{config.MARKER_FRAME_PREFIX}{selected_id}"
+                    transform = tf_lookup.lookup_transform(
+                        config.BASE_FRAME_ID,
+                        marker_frame,
+                        timeout_s=config.TF_LOOKUP_TIMEOUT_S,
+                    )
+                    if transform is not None:
+                        translation = transform.transform.translation
+                        tracker.update_control_from_target_translation(
+                            translation.x,
+                            translation.z,
+                        )
+                        used_tf_control = True
+
+                if angle_error is not None and not used_tf_control:
                     # Draw marker pose
                     if rvec is not None and tvec is not None:
                         visualizer.draw_marker_axes(
@@ -165,7 +254,8 @@ def main() -> int:
                     # Update robot control
                     tracker.update_control_from_angle_error(angle_error)
                 else:
-                    tracker.command_stop()
+                    if not used_tf_control:
+                        tracker.command_stop()
             else:
                 tracker.command_stop()
             
@@ -221,6 +311,11 @@ def main() -> int:
             tracker.shutdown()
         except Exception:
             pass
+        if rclpy is not None and tf_node is not None:
+            try:
+                tf_node.destroy_node()
+            finally:
+                rclpy.shutdown()
         camera.stop()
         visualizer.cleanup()
     

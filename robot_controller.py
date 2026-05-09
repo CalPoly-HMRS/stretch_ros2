@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from math import pi
+from math import atan2, pi
 
 import numpy as np
 
@@ -271,6 +271,16 @@ class StretchWristTracker:
         self._last_post_guard_vel = desired_vel
         self._command_velocity(desired_vel)
         self._last_seen_time_s = time.time()
+
+    def update_control_from_target_translation(self, x_m: float, z_m: float) -> None:
+        """Update control using the target translation in the robot base frame.
+
+        Args:
+            x_m: Target X translation in meters.
+            z_m: Target Z translation in meters.
+        """
+        angle_error_rad = atan2(float(x_m), float(z_m))
+        self.update_control_from_angle_error(angle_error_rad)
     
     def command_stop(self) -> None:
         """Stop wrist motion immediately."""

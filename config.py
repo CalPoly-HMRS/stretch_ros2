@@ -97,3 +97,15 @@ SHOW_TVEC: bool = False
 SHOW_WRIST_YAW: bool = True
 SHOW_VELOCITY_DEBUG: bool = False
 SHOW_YAW_LIMITS: bool = False
+
+# TF publishing
+ENABLE_TF: bool = True
+PUBLISH_BASE_TO_CAMERA_IDENTITY: bool = True
+PUBLISH_ALL_MARKERS: bool = True
+BASE_FRAME_ID: str = "base_link"
+CAMERA_FRAME_ID_HEAD: str = "head_camera_link"
+CAMERA_FRAME_ID_WRIST: str = "wrist_camera_link"
+MARKER_FRAME_PREFIX: str = "aruco_"
+ENABLE_TF_LOOKUP: bool = True
+TF_LOOKUP_TIMEOUT_S: float = 0.1
+USE_TF_FOR_CONTROL: bool = True
