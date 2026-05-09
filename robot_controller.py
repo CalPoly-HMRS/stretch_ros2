@@ -21,6 +21,7 @@ class StretchWristTracker:
         command_hz: float = 20.0,
         camera_follows_wrist: bool = False,
         wrist_direction_sign: float = -1.0,
+        head_pan_to_wrist_yaw_offset_rad: float = pi / 2,
         deadband_rad: float = 0.012,
         wrist_yaw_min_rad: float = -1.39,
         wrist_yaw_max_rad: float = 4.42,
@@ -36,6 +37,7 @@ class StretchWristTracker:
             command_hz: Command update rate in Hz.
             camera_follows_wrist: Whether camera follows wrist motion.
             wrist_direction_sign: Direction multiplier for wrist rotation (+1 or -1).
+            head_pan_to_wrist_yaw_offset_rad: Offset from head pan angle to wrist yaw angle.
             deadband_rad: Angle error threshold below which wrist stops moving.
             wrist_yaw_min_rad: Minimum wrist yaw angle in radians.
             wrist_yaw_max_rad: Maximum wrist yaw angle in radians.
@@ -55,6 +57,7 @@ class StretchWristTracker:
         
         self.wrist_deadband_rad = deadband_rad
         self.wrist_direction_sign = wrist_direction_sign
+        self.head_pan_to_wrist_yaw_offset_rad = head_pan_to_wrist_yaw_offset_rad
         self.wrist_yaw_min_rad = wrist_yaw_min_rad
         self.wrist_yaw_max_rad = wrist_yaw_max_rad
         self.wrist_yaw_limit_buffer_rad = max(0.0, wrist_yaw_limit_buffer_rad)
@@ -179,6 +182,14 @@ class StretchWristTracker:
         )
         return self._smoothed_error_rad
 
+    @staticmethod
+    def _wrap_angle(angle_rad: float) -> float:
+        while angle_rad > pi:
+            angle_rad -= 2.0 * pi
+        while angle_rad < -pi:
+            angle_rad += 2.0 * pi
+        return angle_rad
+
     def _get_wrist_yaw_position(self) -> float | None:
         """Get current wrist yaw position in radians.
         
@@ -187,6 +198,12 @@ class StretchWristTracker:
         """
         try:
             return float(self.robot.end_of_arm.get_joint("wrist_yaw").status["pos"])
+        except Exception:
+            return None
+
+    def _get_head_pan_position(self) -> float | None:
+        try:
+            return float(self.robot.head.get_joint("head_pan").status["pos"])
         except Exception:
             return None
 
@@ -229,7 +246,14 @@ class StretchWristTracker:
         current_yaw = self._get_wrist_yaw_position()
         if current_yaw is not None:
             if not self.camera_follows_wrist:
-                error_rad = angle_error_rad - current_yaw
+                head_pan = self._get_head_pan_position()
+                if head_pan is not None:
+                    desired_wrist_yaw = (
+                        head_pan + self.head_pan_to_wrist_yaw_offset_rad + angle_error_rad
+                    )
+                    error_rad = self._wrap_angle(desired_wrist_yaw - current_yaw)
+                else:
+                    error_rad = angle_error_rad - current_yaw
             error_rad = self.clamp_wrist_yaw_error(current_yaw, error_rad)
 
         filtered_error = self._smooth_error(error_rad)

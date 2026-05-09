@@ -69,6 +69,7 @@ def main() -> int:
             command_hz=config.COMMAND_HZ,
             camera_follows_wrist=camera_follows_wrist,
             wrist_direction_sign=config.WRIST_DIRECTION_SIGN,
+            head_pan_to_wrist_yaw_offset_rad=config.HEAD_PAN_TO_WRIST_YAW_OFFSET_RAD,
             deadband_rad=deadband,
             wrist_yaw_min_rad=config.WRIST_YAW_MIN_RAD,
             wrist_yaw_max_rad=config.WRIST_YAW_MAX_RAD,

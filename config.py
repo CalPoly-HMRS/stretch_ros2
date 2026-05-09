@@ -38,6 +38,7 @@ CAMERA_PROFILE_WRIST_INDEX: int = 18
 COMMAND_HZ: float = 20.0
 WRIST_DEADBAND_RAD_WITH_CAMERA_FOLLOW: float = 0.01
 WRIST_DEADBAND_RAD_WITHOUT_CAMERA_FOLLOW: float = 0.012
+HEAD_PAN_TO_WRIST_YAW_OFFSET_RAD: float = pi / 2
 
 # Joint limits (approximate; tune to your robot)
 # WRIST_YAW_MIN_RAD: float = -1.39
