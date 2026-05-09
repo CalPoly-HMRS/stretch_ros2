@@ -72,7 +72,7 @@ class StretchWristTracker:
         self._last_post_guard_vel = 0.0
     
     def clamp_wrist_yaw_error(self, current_yaw: float, error_rad: float) -> float:
-        """Clamp yaw error so target stays within joint limits.
+        """Clamp yaw error so target stays within hard joint limits.
         
         Args:
             current_yaw: Current wrist yaw angle in radians.
@@ -81,25 +81,42 @@ class StretchWristTracker:
         Returns:
             Clamped yaw error in radians.
         """
-        min_limit = self.wrist_yaw_min_rad + self.wrist_yaw_limit_buffer_rad
-        max_limit = self.wrist_yaw_max_rad - self.wrist_yaw_limit_buffer_rad
+        min_limit = self.wrist_yaw_min_rad
+        max_limit = self.wrist_yaw_max_rad
         if min_limit >= max_limit:
-            min_limit = self.wrist_yaw_min_rad
-            max_limit = self.wrist_yaw_max_rad
+            return 0.0
 
         target_yaw = float(np.clip(current_yaw + error_rad, min_limit, max_limit))
         return target_yaw - current_yaw
 
-    def _apply_yaw_limit_velocity_guard(self, current_yaw: float, desired_vel: float) -> float:
-        """Stop velocity that would push past yaw limits."""
-        buffer_rad = self.wrist_yaw_limit_buffer_rad
-        min_limit = self.wrist_yaw_min_rad + buffer_rad
-        max_limit = self.wrist_yaw_max_rad - buffer_rad
+    def _apply_yaw_limit_velocity_guard(
+        self,
+        current_yaw: float,
+        desired_vel: float,
+    ) -> float:
+        """Soft-limit velocity near yaw bounds while allowing recovery."""
+        hard_min = self.wrist_yaw_min_rad
+        hard_max = self.wrist_yaw_max_rad
+        if hard_min >= hard_max:
+            return 0.0
 
-        if current_yaw <= min_limit and desired_vel < 0.0:
+        buffer_rad = max(0.0, self.wrist_yaw_limit_buffer_rad)
+        soft_min = hard_min + buffer_rad
+        soft_max = hard_max - buffer_rad
+
+        if current_yaw <= hard_min and desired_vel < 0.0:
             return 0.0
-        if current_yaw >= max_limit and desired_vel > 0.0:
+        if current_yaw >= hard_max and desired_vel > 0.0:
             return 0.0
+
+        if buffer_rad > 0.0:
+            if desired_vel < 0.0 and current_yaw < soft_min:
+                scale = (current_yaw - hard_min) / buffer_rad
+                return desired_vel * float(np.clip(scale, 0.0, 1.0))
+            if desired_vel > 0.0 and current_yaw > soft_max:
+                scale = (hard_max - current_yaw) / buffer_rad
+                return desired_vel * float(np.clip(scale, 0.0, 1.0))
+
         return desired_vel
     
     def initialize_robot(self) -> None:
@@ -155,6 +172,8 @@ class StretchWristTracker:
             Smoothed angle error in radians.
         """
         alpha = self.error_smoothing_alpha
+        if raw_error_rad * self._smoothed_error_rad < 0.0:
+            self._smoothed_error_rad = 0.0
         self._smoothed_error_rad = (
             (1.0 - alpha) * self._smoothed_error_rad + alpha * raw_error_rad
         )
@@ -208,40 +227,23 @@ class StretchWristTracker:
         """
         error_rad = angle_error_rad
         current_yaw = self._get_wrist_yaw_position()
-        outside_limits = False
         if current_yaw is not None:
-            min_limit = self.wrist_yaw_min_rad + self.wrist_yaw_limit_buffer_rad
-            max_limit = self.wrist_yaw_max_rad - self.wrist_yaw_limit_buffer_rad
-            outside_limits = current_yaw < min_limit or current_yaw > max_limit
-
             if not self.camera_follows_wrist:
                 error_rad = angle_error_rad - current_yaw
+            error_rad = self.clamp_wrist_yaw_error(current_yaw, error_rad)
 
-            if outside_limits:
-                self._smoothed_error_rad = 0.0
-                if current_yaw < min_limit:
-                    error_rad = min_limit - current_yaw
-                else:
-                    error_rad = max_limit - current_yaw
-            else:
-                error_rad = self.clamp_wrist_yaw_error(current_yaw, error_rad)
-                if current_yaw <= min_limit and error_rad < 0.0:
-                    error_rad = 0.0
-                    self._smoothed_error_rad = 0.0
-                elif current_yaw >= max_limit and error_rad > 0.0:
-                    error_rad = 0.0
-                    self._smoothed_error_rad = 0.0
-
-        filtered_error = error_rad if outside_limits else self._smooth_error(error_rad)
-        
-        if not outside_limits and abs(filtered_error) < self.wrist_deadband_rad:
+        filtered_error = self._smooth_error(error_rad)
+        if abs(filtered_error) < self.wrist_deadband_rad:
             self._command_velocity(0.0)
             return
-        
+
         desired_vel = self.wrist_direction_sign * self.control_kp * filtered_error
         self._last_pre_guard_vel = desired_vel
         if current_yaw is not None:
-            desired_vel = self._apply_yaw_limit_velocity_guard(current_yaw, desired_vel)
+            desired_vel = self._apply_yaw_limit_velocity_guard(
+                current_yaw,
+                desired_vel,
+            )
         self._last_post_guard_vel = desired_vel
         self._command_velocity(desired_vel)
         self._last_seen_time_s = time.time()
