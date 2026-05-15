@@ -4,7 +4,7 @@ import copy
 import yaml
 import numpy as np
 import threading
-from rwlock import RWLock
+from stretch_libs.rwlock import RWLock
 import stretch_body.robot as rb
 from stretch_body import gamepad_teleop
 import stretch_body
@@ -35,8 +35,8 @@ from hello_helpers.gripper_conversion import GripperConversion
 from hello_helpers.joint_qpos_conversion import get_Idx, UnsupportedToolError
 from hello_helpers.hello_misc import LoopTimer
 from hello_helpers.gamepad_conversion import unpack_joy_to_gamepad_state, unpack_gamepad_state_to_joy, get_default_joy_msg
-from joint_trajectory_server import JointTrajectoryAction
-from stretch_diagnostics import StretchDiagnostics
+from stretch_libs.joint_trajectory_server import JointTrajectoryAction
+from stretch_libs.stretch_diagnostics import StretchDiagnostics
 
 from ament_index_python.packages import get_package_share_path
 
