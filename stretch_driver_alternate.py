@@ -79,6 +79,9 @@ class StretchDriver(Node):
         # NOTE: umm I kinda added a push command in the set velocitieis stuff so idk if this matters
         self.dirty_command = False
 
+        self.velocity_duration_s = 0.25 # how long the velocities we receive should last for
+        self.last_velocity_command_time = self.get_clock().now()
+
         self.voltage_history = []
         self.charging_state_history = [BatteryState.POWER_SUPPLY_STATUS_UNKNOWN] * 10
         self.charging_state = BatteryState.POWER_SUPPLY_STATUS_UNKNOWN
@@ -148,7 +151,7 @@ class StretchDriver(Node):
     def move_to_position(self, qpos):
         try:
             try:
-             Idx = get_Idx(self.robot.params['tool'])
+                Idx = get_Idx(self.robot.params['tool'])
             except UnsupportedToolError:
                 self.get_logger().error('Unsupported tool for streaming position control.')
             if len(qpos) != Idx.num_joints:
@@ -197,19 +200,21 @@ class StretchDriver(Node):
                 print('Reset Streaming position looptimer after 5s no message received.')
                 self.streaming_controller_lt.reset()
         qvels = msg.data
-        self.set_velocities(qvels)
+        self.set_velocities(qvels) # TODO: move this call to the periodic like loop (command_mobile_base_velocity_and_publish_state) so velocities are consistently applied at a constant hertz
         self.robot_mode_rwlock.release_read()
         if STREAMING_POSITION_DEBUG:
             self.streaming_controller_lt.update()
 
     def set_velocities(self, qvels):
+        # qvels is Idx based (all joints) + 1. Last one is the duration, by default 0.25s if not set
+
         try:
             try:
-             Idx = get_Idx(self.robot.params['tool'])
+                Idx = get_Idx(self.robot.params['tool'])
             except UnsupportedToolError:
                 self.get_logger().error('Unsupported tool for streaming position control.')
-            if len(qvels) != Idx.num_joints:
-                self.get_logger().error('Received qvels does not match the number of joints in the robot')
+            if len(qvels) != Idx.num_joints or len(qvels) != Idx.num_joints + 1:
+                self.get_logger().error('Received qvels does not match the number of joints in the robot (or + 1 for duration)')
                 return
             
             # all the arm joints
@@ -275,6 +280,8 @@ class StretchDriver(Node):
             else:
                 self.robot.base.set_velocity(0.0, 0.0)
                 # self.robot.push_command() #Moved to main
+
+        # TODO: move set_velocities call to here so it is consistently in a periodic loop or whatever
 
         # get copy of the current robot status (uses lock held by the robot)
         robot_status = self.robot.get_status()

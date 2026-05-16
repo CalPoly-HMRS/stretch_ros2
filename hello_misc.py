@@ -6,6 +6,7 @@ import sys
 import glob
 import math
 
+from hello_helpers.joint_qpos_conversion import get_Idx
 import rclpy
 from rclpy.duration import Duration
 from rclpy.time import Time
@@ -26,7 +27,7 @@ from geometry_msgs.msg import Transform
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from sensor_msgs.msg import PointCloud2
 from std_srvs.srv import Trigger
-from std_msgs.msg import String
+from std_msgs.msg import Float64MultiArray, String
 import threading
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -214,6 +215,113 @@ class HelloNode(Node):
         else:
             return self.trajectory_client.send_goal_async(trajectory_goal)
 
+########################### My Custom Joint Pose Publisher Function things idk ############################
+
+    def publish_joint_pose(self, joint_pose):
+        msg = Float64MultiArray()
+        msg.data = list(joint_pose)
+        self.joint_pose_publisher.publish(msg)
+        # self.get_logger().info('Publishing: "%s"' % msg.data)
+
+    def publish_joint_velocity(self, joint_velocity):
+        msg = Float64MultiArray()
+        msg.data = list(joint_velocity)
+        self.joint_velocity_publisher.publish(msg)
+        # self.get_logger().info('Publishing: "%s"' % msg.data)
+
+    def set_joint_poses(self, joint_poses: list[tuple[str, int]]):
+        joint_names = [joint_pose[0] for joint_pose in joint_poses]
+        joint_values = [joint_pose[1] for joint_pose in joint_poses]
+
+        # stupid check but I tend to write stupid code so here we are
+        if len(joint_values) != len(joint_names):
+            self.get_logger().error("Length of joint_values does not match length of joint_names")
+            return
+
+        # check if all joint names are valid
+        # for joint_name in joint_names:
+        #     if joint_name not in self.all_joint_names:
+        #         self.get_logger().error("Invalid joint name: {}. Valid joint names are: {}".format(joint_name, self.all_joint_names))
+        #         return
+
+        for name in self.all_joint_names:
+            if name not in joint_names:
+                # self.get_logger().warn("Joint name {} not found in input joint_poses. Using current position for this joint.".format(name))
+                joint_names.append(name)
+                joint_values.append(self.joint_state.position[self.joint_state.name.index('joint_' + name)])
+
+                if name == 'arm':
+                    joint_values[-1] = self.joint_state.position[self.joint_state.name.index('joint_arm_l0')] * 4 # stretch states splits the arm length over 4 vars i think... (so mul by 4 to get total arm length)
+
+        # NOTE: be careful with gripper, no idea what unit/scale it is... I think the "move_to_pos" in the driver takes the "finger" value whatever the hell that is (then it converts it to the -100 to 100?)
+        # I think the joint_state has it in the "finger" state already but umm... yeah...
+
+        # since we added every valid one if it does not exist, then all excess ones were not valid/not in all_joint_names
+        if len(joint_names) != len(self.all_joint_names):
+            self.get_logger().error("You messed up the joint names or smth. Here are the valid joint names: {}".format(self.all_joint_names))
+
+            for joint_name in joint_names: # find the invalid one(s) just to laugh at the user more
+                if joint_name not in self.all_joint_names:
+                    self.get_logger().error("Invalid joint name: {}. Valid joint names are: {}".format(joint_name, self.all_joint_names))
+                
+            return
+
+        qpos = np.zeros(self.Idx.num_joints)
+        qpos[self.Idx.LIFT] = joint_values[joint_names.index('lift')]
+        qpos[self.Idx.ARM] = joint_values[joint_names.index('arm')]
+        qpos[self.Idx.WRIST_PITCH] = joint_values[joint_names.index('wrist_pitch')]
+        qpos[self.Idx.WRIST_ROLL] = joint_values[joint_names.index('wrist_roll')]
+        qpos[self.Idx.WRIST_YAW] = joint_values[joint_names.index('wrist_yaw')]
+        qpos[self.Idx.GRIPPER] = joint_values[joint_names.index('gripper')]
+        qpos[self.Idx.BASE_TRANSLATE] = joint_values[joint_names.index('base_translate')]
+        qpos[self.Idx.BASE_ROTATE] = joint_values[joint_names.index('base_rotate')]
+        qpos[self.Idx.HEAD_PAN] = joint_values[joint_names.index('head_pan')]
+        qpos[self.Idx.HEAD_TILT] = joint_values[joint_names.index('head_tilt')]
+        
+        self.joint_pose_publisher.publish_joint_pose(qpos)
+        self.joint_pose_publisher.wait_until_at_setpoint(qpos)
+
+
+    def set_joint_velocities(self, joint_vels: list[tuple[str, int]], duration=0.1):
+        # default duration set to 0.1 so if you stop sending velocities it will 0 out after the duration for safety
+        # duration goes at the end of qvels, so the qvels array is Idx based (all joints) + 1
+        
+        joint_names = [joint_vel[0] for joint_vel in joint_vels]
+        joint_values = [joint_vel[1] for joint_vel in joint_vels]
+
+        for name in self.all_joint_names:
+            if name not in joint_names:
+                # self.get_logger().warn("Joint name {} not found in input joint_poses. Using current position for this joint.".format(name))
+                joint_names.append(name)
+                joint_values.append(0)
+
+        # since we added every valid one if it does not exist, then all excess ones were not valid/not in all_joint_names
+        if len(joint_names) != len(self.all_joint_names):
+            self.get_logger().error("You messed up the joint names or smth. Here are the valid joint names: {}".format(self.all_joint_names))
+
+            for joint_name in joint_names: # find the invalid one(s) just to laugh at the user more (the user is literally gonna be me later...)
+                if joint_name not in self.all_joint_names:
+                    self.get_logger().error("Invalid joint name: {}. Valid joint names are: {}".format(joint_name, self.all_joint_names))
+                
+            return
+        
+        qvels = np.zeros(self.Idx.num_joints)
+        qvels[self.Idx.LIFT] = joint_values[joint_names.index('lift')]
+        qvels[self.Idx.ARM] = joint_values[joint_names.index('arm')]
+        qvels[self.Idx.WRIST_PITCH] = joint_values[joint_names.index('wrist_pitch')]
+        qvels[self.Idx.WRIST_ROLL] = joint_values[joint_names.index('wrist_roll')]
+        qvels[self.Idx.WRIST_YAW] = joint_values[joint_names.index('wrist_yaw')]
+        qvels[self.Idx.GRIPPER] = joint_values[joint_names.index('gripper')]
+        qvels[self.Idx.BASE_TRANSLATE] = joint_values[joint_names.index('base_translate')]
+        qvels[self.Idx.BASE_ROTATE] = joint_values[joint_names.index('base_rotate')]
+        qvels[self.Idx.HEAD_PAN] = joint_values[joint_names.index('head_pan')]
+        qvels[self.Idx.HEAD_TILT] = joint_values[joint_names.index('head_tilt')]
+        qvels = np.append(qvels, duration)
+        self.joint_velocity_publisher.publish_joint_velocity(qvels)
+
+
+############################# End my custom stuff ####################################################
+
     def get_tf(self, from_frame, to_frame):
         """Get current transform between 2 frames. Blocking for 2 secs at worst.
         """
@@ -297,6 +405,13 @@ class HelloNode(Node):
         self.new_thread.start()
 
         reentrant_cb = ReentrantCallbackGroup()
+
+        self.joint_pose_publisher = self.create_publisher(Float64MultiArray, 'joint_pose_cmd', 10,callback_group=reentrant_cb)
+        self.joint_velocity_publisher = self.create_publisher(Float64MultiArray, 'joint_velocity_cmd', 10,callback_group=reentrant_cb)
+
+        self.Idx = get_Idx('eoa_wrist_dw3_tool_sg3')
+
+        self.all_joint_names = ["lift", "arm", "wrist_pitch", "wrist_roll", "wrist_yaw", "stretch_gripper", "head_pan", "head_tilt", "base_translate", "base_rotate"] # technically base_translate and base_rotate are not supposed to be used? but idk future proofing ¯\_(ツ)_/¯
 
         self.trajectory_client = ActionClient(self, FollowJointTrajectory, '/stretch_controller/follow_joint_trajectory', callback_group=reentrant_cb)
         server_reached = self.trajectory_client.wait_for_server(timeout_sec=60.0)
