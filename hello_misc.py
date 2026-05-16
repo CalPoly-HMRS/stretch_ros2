@@ -282,6 +282,7 @@ class HelloNode(Node):
         self.joint_pose_publisher.wait_until_at_setpoint(qpos)
 
 
+    # TODO: add zero velocities (mayhaps service?) too that calls the zero_velocities thing in the driver
     def set_joint_velocities(self, joint_vels: list[tuple[str, int]], duration=0.1):
         # default duration set to 0.1 so if you stop sending velocities it will 0 out after the duration for safety
         # duration goes at the end of qvels, so the qvels array is Idx based (all joints) + 1

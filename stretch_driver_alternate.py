@@ -80,7 +80,7 @@ class StretchDriver(Node):
         self.dirty_command = False
 
         self.velocity_duration_s = 0.25 # default for how long the velocities we receive should last for
-        self.last_velocity_command_time = self.get_clock().now()
+        self.last_velocity_command_time = None # set to None to indicate that we currently do not have an active velocity command (ie. we have either never received one, or we have received one but it has already been zeroed out)
         self.qvels = None
 
         self.voltage_history = []
@@ -201,6 +201,7 @@ class StretchDriver(Node):
                 print('Reset Streaming position looptimer after 5s no message received.')
                 self.streaming_controller_lt.reset()
         self.qvels = msg.data
+        self.last_velocity_command_time = self.get_clock().now()
         # self.set_velocities(qvels) # NOTE: this command was moved to the command_mobile_base_velocity_and_publish_state loop cuz its like the periodic loop
         self.robot_mode_rwlock.release_read()
         if STREAMING_POSITION_DEBUG:
@@ -239,7 +240,9 @@ class StretchDriver(Node):
             # self.robot.push_command()
 
             # success message
-            self.get_logger().info(f"Set velocities qvels: {qvels}")
+            # self.get_logger().info(f"Set velocities: | with duration: {self.velocity_duration_s} seconds")
+            # fancy print lol
+            self.get_logger().info(f"Set velocities: | with duration: {self.velocity_duration_s} seconds | " + " | ".join([f"{joint_name}: {qvels[joint_idx]}" for joint_name, joint_idx in Idx.__dict__.items() if not joint_name.startswith('__') and joint_idx < len(qvels)]))
 
         except Exception as e:
             self.get_logger().error('Failed to set velocities: {0}'.format(e))
@@ -301,17 +304,16 @@ class StretchDriver(Node):
 
         # NOTE: velocities are set here in the equiavalent of a periodic loop
         if self.qvels is not None:
-            self.set_velocities(self.qvels)
             self.last_velocity_command_time = self.get_clock().now()
+            self.set_velocities(self.qvels)
             self.qvels = None
-        else:
-            # if we havent received a velocity command recently, then zero the velocities for safety
+        elif self.last_velocity_command_time is not None:
             time_since_last_velocity_command = self.get_clock().now() - self.last_velocity_command_time
             if time_since_last_velocity_command > Duration(seconds=self.velocity_duration_s):
                 self.zero_velocities()
                 self.last_velocity_command_time = self.get_clock().now()
                 self.velocity_duration_s = 0.25 # reset to default after zeroing
-        
+                self.last_velocity_command_time = None
 
         # get copy of the current robot status (uses lock held by the robot)
         robot_status = self.robot.get_status()
