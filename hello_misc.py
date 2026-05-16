@@ -272,14 +272,13 @@ class HelloNode(Node):
         qpos[self.Idx.WRIST_PITCH] = joint_values[joint_names.index('wrist_pitch')]
         qpos[self.Idx.WRIST_ROLL] = joint_values[joint_names.index('wrist_roll')]
         qpos[self.Idx.WRIST_YAW] = joint_values[joint_names.index('wrist_yaw')]
-        qpos[self.Idx.GRIPPER] = joint_values[joint_names.index('gripper')]
+        qpos[self.Idx.GRIPPER] = joint_values[joint_names.index('stretch_gripper')]
         qpos[self.Idx.BASE_TRANSLATE] = joint_values[joint_names.index('base_translate')]
         qpos[self.Idx.BASE_ROTATE] = joint_values[joint_names.index('base_rotate')]
         qpos[self.Idx.HEAD_PAN] = joint_values[joint_names.index('head_pan')]
         qpos[self.Idx.HEAD_TILT] = joint_values[joint_names.index('head_tilt')]
         
-        self.joint_pose_publisher.publish_joint_pose(qpos)
-        self.joint_pose_publisher.wait_until_at_setpoint(qpos)
+        self.publish_joint_pose(qpos)
 
 
     # TODO: add zero velocities (mayhaps service?) too that calls the zero_velocities thing in the driver
@@ -316,7 +315,7 @@ class HelloNode(Node):
         qvels[self.Idx.HEAD_PAN] = joint_values[joint_names.index('head_pan')]
         qvels[self.Idx.HEAD_TILT] = joint_values[joint_names.index('head_tilt')]
         qvels = np.append(qvels, duration)
-        self.joint_velocity_publisher.publish_joint_velocity(qvels)
+        self.publish_joint_velocity(qvels)
 
 
 ############################# End my custom stuff ####################################################
