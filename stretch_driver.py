@@ -76,6 +76,7 @@ class StretchDriver(Node):
         self.prev_runstop_state = None # helps track if runstop state has changed
 
         # manages when `robot.push_command()` is called
+        # NOTE: umm I kinda added a push command in the set velocitieis stuff so idk if this matters
         self.dirty_command = False
 
         self.voltage_history = []
@@ -86,7 +87,10 @@ class StretchDriver(Node):
         self.received_gamepad_joy_msg = get_default_joy_msg()
         if STREAMING_POSITION_DEBUG:
             self.streaming_controller_lt = LoopTimer(name="Streaming Position", print_debug=STREAMING_POSITION_DEBUG)
-        self.streaming_position_activated = False
+        
+        # NOTE: allows joint_pose_cmd and my new joint_velocity_cmd to work in position and navigation modes, but not trajectory mode (since trajectory mode is meant to be used with the joint_trajectory_action server and thats weird)
+        # NOTE: i also wanna rewrite the hello_misc helper for the primary control method to be just the joint_pose_cmd which basically forwards to the python lib
+        self.streaming_position_activated = True
         self.ros_setup()
 
     def set_gamepad_motion_callback(self, joy):
@@ -171,6 +175,74 @@ class StretchDriver(Node):
             self.get_logger().info(f"Moved to position qpos: {qpos}")
         except Exception as e:
             self.get_logger().error('Failed to move to position: {0}'.format(e))
+
+    def set_robot_streaming_velocity_callback(self, msg):
+        self.robot_mode_rwlock.acquire_read()
+        if not self.streaming_position_activated:
+            self.get_logger().error('Streaming position is not activated.'
+                                    ' Please activate streaming position to receive command to joint_velocity_cmd.')
+            self.robot_mode_rwlock.release_read()
+            return
+        
+        # TODO: in the future, cosnider adding a velocity robot mode
+        if not self.robot_mode in ['position', 'navigation']:
+            self.get_logger().error('{0} must be in position or navigation mode with streaming_position activated ' 
+                                    'enabled to receive command to joint_velocity_cmd. '
+                                    'Current mode = {1}.'.format(self.node_name, self.robot_mode))
+            self.robot_mode_rwlock.release_read()
+            return
+
+        if STREAMING_POSITION_DEBUG:
+            if (self.get_clock().now().nanoseconds * 1e-9) - self.streaming_controller_lt.last_update_time > 5.0:
+                print('Reset Streaming position looptimer after 5s no message received.')
+                self.streaming_controller_lt.reset()
+        qvels = msg.data
+        self.set_velocities(qvels)
+        self.robot_mode_rwlock.release_read()
+        if STREAMING_POSITION_DEBUG:
+            self.streaming_controller_lt.update()
+
+    def set_velocities(self, qvels):
+        try:
+            try:
+             Idx = get_Idx(self.robot.params['tool'])
+            except UnsupportedToolError:
+                self.get_logger().error('Unsupported tool for streaming position control.')
+            if len(qvels) != Idx.num_joints:
+                self.get_logger().error('Received qvels does not match the number of joints in the robot')
+                return
+            
+            # all the arm joints
+            self.robot.arm.set_velocity(qvels[Idx.ARM])
+            self.robot.lift.set_velocity(qvels[Idx.LIFT])
+            self.robot.end_of_arm.set_velocity('wrist_yaw', qvels[Idx.WRIST_YAW])
+            if 'wrist_pitch' in self.robot.end_of_arm.joints:
+                self.robot.end_of_arm.set_velocity('wrist_pitch', qvels[Idx.WRIST_PITCH])
+            if 'wrist_roll' in self.robot.end_of_arm.joints:
+                self.robot.end_of_arm.set_velocity('wrist_roll', qvels[Idx.WRIST_ROLL])
+            self.robot.head.set_velocity('head_pan', qvels[Idx.HEAD_PAN])
+            self.robot.head.set_velocity('head_tilt', qvels[Idx.HEAD_TILT])
+
+            # base stuff (might remove)
+            # if abs(qvels[Idx.BASE_TRANSLATE]) > 0.0 and abs(qvels[Idx.BASE_ROTATE]) > 0.0 and self.robot_mode != 'position':
+            #     self.get_logger().error('Cannot move base in both translation and rotation at the same time in position mode')
+            # elif abs(qvels[Idx.BASE_TRANSLATE]) > 0.0 and self.robot_mode == 'position':
+            #     self.robot.base.translate_by(qvels[Idx.BASE_TRANSLATE])
+            # elif abs(qvels[Idx.BASE_ROTATE]) > 0.0 and self.robot_mode == 'position':
+            #     self.robot.base.rotate_by(qvels[Idx.BASE_ROTATE])
+            
+            # dont really want velocities for the gripper
+            # if 'stretch_gripper' in self.robot.end_of_arm.joints:
+            #     pos = self.gripper_conversion.finger_to_robotis(qvels[Idx.GRIPPER])
+            #     self.robot.end_of_arm.set_velocity('stretch_gripper', pos)
+
+            self.robot.push_command()
+
+            # success message
+            self.get_logger().info(f"Set velocities qvels: {qvels}")
+
+        except Exception as e:
+            self.get_logger().error('Failed to set velocities: {0}'.format(e))
 
     def command_mobile_base_velocity_and_publish_state(self):
         self.robot_mode_rwlock.acquire_read()
@@ -985,6 +1057,9 @@ class StretchDriver(Node):
 
         self.create_subscription(Float64MultiArray, "joint_pose_cmd", self.set_robot_streaming_position_callback, 1, callback_group=self.main_group)
 
+        self.create_subscription(Float64MultiArray, "joint_velocity_cmd", self.set_robot_streaming_velocity_callback, 1, callback_group=self.main_group)
+
+        # TODO: look at increasing to 60Hz
         self.declare_parameter('rate', 30.0)
         self.joint_state_rate = self.get_parameter('rate').value
         self.declare_parameter('timeout', 0.5, ParameterDescriptor(
