@@ -76,11 +76,12 @@ class StretchDriver(Node):
         self.prev_runstop_state = None # helps track if runstop state has changed
 
         # manages when `robot.push_command()` is called
-        # NOTE: umm I kinda added a push command in the set velocitieis stuff so idk if this matters
+        # NOTE: Dynamixel velocity commands are instant
         self.dirty_command = False
 
-        self.velocity_duration_s = 0.25 # how long the velocities we receive should last for
+        self.velocity_duration_s = 0.25 # default for how long the velocities we receive should last for
         self.last_velocity_command_time = self.get_clock().now()
+        self.qvels = None
 
         self.voltage_history = []
         self.charging_state_history = [BatteryState.POWER_SUPPLY_STATUS_UNKNOWN] * 10
@@ -199,14 +200,14 @@ class StretchDriver(Node):
             if (self.get_clock().now().nanoseconds * 1e-9) - self.streaming_controller_lt.last_update_time > 5.0:
                 print('Reset Streaming position looptimer after 5s no message received.')
                 self.streaming_controller_lt.reset()
-        qvels = msg.data
-        self.set_velocities(qvels) # TODO: move this call to the periodic like loop (command_mobile_base_velocity_and_publish_state) so velocities are consistently applied at a constant hertz
+        self.qvels = msg.data
+        # self.set_velocities(qvels) # NOTE: this command was moved to the command_mobile_base_velocity_and_publish_state loop cuz its like the periodic loop
         self.robot_mode_rwlock.release_read()
         if STREAMING_POSITION_DEBUG:
             self.streaming_controller_lt.update()
 
     def set_velocities(self, qvels):
-        # qvels is Idx based (all joints) + 1. Last one is the duration, by default 0.25s if not set
+        # qvels is Idx based (all joints) + 1. Last one is the duration, by default (here) 0.25s if not set
 
         try:
             try:
@@ -228,26 +229,43 @@ class StretchDriver(Node):
             self.robot.head.set_velocity('head_pan', qvels[Idx.HEAD_PAN])
             self.robot.head.set_velocity('head_tilt', qvels[Idx.HEAD_TILT])
 
-            # base stuff (might remove)
-            # if abs(qvels[Idx.BASE_TRANSLATE]) > 0.0 and abs(qvels[Idx.BASE_ROTATE]) > 0.0 and self.robot_mode != 'position':
-            #     self.get_logger().error('Cannot move base in both translation and rotation at the same time in position mode')
-            # elif abs(qvels[Idx.BASE_TRANSLATE]) > 0.0 and self.robot_mode == 'position':
-            #     self.robot.base.translate_by(qvels[Idx.BASE_TRANSLATE])
-            # elif abs(qvels[Idx.BASE_ROTATE]) > 0.0 and self.robot_mode == 'position':
-            #     self.robot.base.rotate_by(qvels[Idx.BASE_ROTATE])
-            
-            # dont really want velocities for the gripper
-            # if 'stretch_gripper' in self.robot.end_of_arm.joints:
-            #     pos = self.gripper_conversion.finger_to_robotis(qvels[Idx.GRIPPER])
-            #     self.robot.end_of_arm.set_velocity('stretch_gripper', pos)
+            if len(qvels) == Idx.num_joints + 1:
+                # duration was specifcied as the last element of qvels
+                self.velocity_duration_s = qvels[-1]
 
-            self.robot.push_command()
+            # base controlled through cmd_vel, and gripper not velocity controlled, so not included here
+
+            # now done at the end of the periodic (command_mobile_base_velocity_and_publish_state) loop to ensure consistent timing of velocity commands
+            # self.robot.push_command()
 
             # success message
             self.get_logger().info(f"Set velocities qvels: {qvels}")
 
         except Exception as e:
             self.get_logger().error('Failed to set velocities: {0}'.format(e))
+
+    def zero_velocities(self):
+        try:
+            self.robot.arm.set_velocity(0.0)
+            self.robot.lift.set_velocity(0.0)
+            self.robot.end_of_arm.set_velocity('wrist_yaw', 0.0)
+            if 'wrist_pitch' in self.robot.end_of_arm.joints:
+                self.robot.end_of_arm.set_velocity('wrist_pitch', 0.0)
+            if 'wrist_roll' in self.robot.end_of_arm.joints:
+                self.robot.end_of_arm.set_velocity('wrist_roll', 0.0)
+            self.robot.head.set_velocity('head_pan', 0.0)
+            self.robot.head.set_velocity('head_tilt', 0.0)
+
+            # base controlled through cmd_vel, and gripper not velocity controlled, so not included here
+
+            # probably push this instantly for safety?
+            self.robot.push_command()
+
+            # success message
+            self.get_logger().info(f"Zeroed velocities")
+
+        except Exception as e:
+            self.get_logger().error('Failed to zero velocities: {0}'.format(e))
 
     def command_mobile_base_velocity_and_publish_state(self):
         self.robot_mode_rwlock.acquire_read()
@@ -281,7 +299,19 @@ class StretchDriver(Node):
                 self.robot.base.set_velocity(0.0, 0.0)
                 # self.robot.push_command() #Moved to main
 
-        # TODO: move set_velocities call to here so it is consistently in a periodic loop or whatever
+        # NOTE: velocities are set here in the equiavalent of a periodic loop
+        if self.qvels is not None:
+            self.set_velocities(self.qvels)
+            self.last_velocity_command_time = self.get_clock().now()
+            self.qvels = None
+        else:
+            # if we havent received a velocity command recently, then zero the velocities for safety
+            time_since_last_velocity_command = self.get_clock().now() - self.last_velocity_command_time
+            if time_since_last_velocity_command > Duration(seconds=self.velocity_duration_s):
+                self.zero_velocities()
+                self.last_velocity_command_time = self.get_clock().now()
+                self.velocity_duration_s = 0.25 # reset to default after zeroing
+        
 
         # get copy of the current robot status (uses lock held by the robot)
         robot_status = self.robot.get_status()

@@ -290,13 +290,13 @@ class HelloNode(Node):
         joint_values = [joint_vel[1] for joint_vel in joint_vels]
 
         for name in self.all_joint_names:
-            if name not in joint_names:
+            if name not in joint_names and name not in ['base_translate', 'base_rotate', 'stretch_gripper']: # base translate and rotate are not controlled here, and stretch_gripper is not velocity controlled at all
                 # self.get_logger().warn("Joint name {} not found in input joint_poses. Using current position for this joint.".format(name))
                 joint_names.append(name)
                 joint_values.append(0)
 
         # since we added every valid one if it does not exist, then all excess ones were not valid/not in all_joint_names
-        if len(joint_names) != len(self.all_joint_names):
+        if len(joint_names) != len(self.all_joint_names) - 3: # technically base_translate, base_rotate, and stretch_gripper are not velocity-able
             self.get_logger().error("You messed up the joint names or smth. Here are the valid joint names: {}".format(self.all_joint_names))
 
             for joint_name in joint_names: # find the invalid one(s) just to laugh at the user more (the user is literally gonna be me later...)
@@ -311,9 +311,7 @@ class HelloNode(Node):
         qvels[self.Idx.WRIST_PITCH] = joint_values[joint_names.index('wrist_pitch')]
         qvels[self.Idx.WRIST_ROLL] = joint_values[joint_names.index('wrist_roll')]
         qvels[self.Idx.WRIST_YAW] = joint_values[joint_names.index('wrist_yaw')]
-        qvels[self.Idx.GRIPPER] = joint_values[joint_names.index('gripper')]
-        qvels[self.Idx.BASE_TRANSLATE] = joint_values[joint_names.index('base_translate')]
-        qvels[self.Idx.BASE_ROTATE] = joint_values[joint_names.index('base_rotate')]
+        # base translate, base rotate, and stretch gripper are not velocity controlled, so not included here
         qvels[self.Idx.HEAD_PAN] = joint_values[joint_names.index('head_pan')]
         qvels[self.Idx.HEAD_TILT] = joint_values[joint_names.index('head_tilt')]
         qvels = np.append(qvels, duration)
