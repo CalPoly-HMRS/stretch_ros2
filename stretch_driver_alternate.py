@@ -978,6 +978,8 @@ class StretchDriver(Node):
         self.node_name = self.get_name()
 
         self.get_logger().info("For use with S T R E T C H (TM) RESEARCH EDITION from Hello Robot Inc.")
+        self.get_logger().info("WARNING: This is a modified version of the official stretch_driver - Anay N")
+        self.get_logger().info("Use with caution. You can ask me for help at annagar@calpoly.edu");
 
         self.get_logger().info("{0} started".format(self.node_name))
         
