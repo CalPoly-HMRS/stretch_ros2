@@ -353,6 +353,7 @@ class StretchIkRos:
         # Apply temporary bounds/fixed joints for a single IK solve.
         joint_bounds = joint_bounds or {}
         fixed_joints = fixed_joints or {}
+        epsilon = 1e-6
         original_bounds = {}
 
         try:
@@ -365,7 +366,7 @@ class StretchIkRos:
                 index = self._get_link_index(name)
                 if name not in original_bounds:
                     original_bounds[name] = self.chain.links[index].bounds
-                self.chain.links[index].bounds = (value, value)
+                self.chain.links[index].bounds = (value - epsilon, value + epsilon)
 
             yield
         finally:
