@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+from math import pi
 import time
 
 import rclpy
@@ -102,6 +103,134 @@ def run_velocity_test(steps=40, rate_hz=20.0, duration_s=0.1):
 		rclpy.shutdown()
 
 
+def run_arm_only_pose_test(steps=10, rate_hz=15.0):
+	node = HelloNode.quick_create("arm_only_pose_test", wait_for_first_pointcloud=False)
+	if not wait_for_joint_state(node):
+		node.get_logger().error("Timed out waiting for joint states. Aborting arm-only pose test.")
+		rclpy.shutdown()
+		return
+
+	joint_values = {
+		"lift": 0.5,
+		"arm": 0.1,
+		"wrist_pitch": 0.0,
+		"wrist_roll": 0.0,
+		"wrist_yaw": 0.0,
+		"stretch_gripper": 0.0,
+		"head_pan": 0.0,
+		"head_tilt": 0.0,
+		"base_translate": 0.0,
+		"base_rotate": 0.0,
+	}
+
+	deltas = {
+		"lift": 0.03,
+		"arm": 0.04,
+		"wrist_pitch": 0.0,
+		"wrist_roll": 0.0,
+		"wrist_yaw": 0.0,
+		"stretch_gripper": 0.0,
+		"head_pan": 0.0,
+		"head_tilt": 0.0,
+		"base_translate": 0.0,
+		"base_rotate": 0.0,
+	}
+
+	period_s = 1.0 / rate_hz
+
+	try:
+		for _ in range(steps):
+			joint_values = {k: v + deltas[k] for k, v in joint_values.items()}
+			node.set_joint_poses(list(joint_values.items()))
+			rclpy.spin_once(node, timeout_sec=0.1)
+			time.sleep(period_s)
+		time.sleep(1.0)
+		for _ in range(steps):
+			joint_values = {k: v - deltas[k] for k, v in joint_values.items()}
+			node.set_joint_poses(list(joint_values.items()))
+			rclpy.spin_once(node, timeout_sec=0.1)
+			time.sleep(period_s)
+	finally:
+		rclpy.shutdown()
+
+
+def run_wrist_only_velocity_test(steps=40, rate_hz=20.0, duration_s=0.1):
+	node = HelloNode.quick_create("wrist_only_velocity_test", wait_for_first_pointcloud=False)
+	if not wait_for_joint_state(node):
+		node.get_logger().error("Timed out waiting for joint states. Aborting wrist-only velocity test.")
+		rclpy.shutdown()
+		return
+
+	forward_vels = [
+		("wrist_pitch", -0.05),
+		("wrist_roll", 0.05),
+		("wrist_yaw", 0.05),
+	]
+	reverse_vels = [(name, -value) for name, value in forward_vels]
+
+	period_s = 1.0 / rate_hz
+
+	try:
+		for _ in range(steps):
+			node.set_joint_velocities(forward_vels, duration=duration_s)
+			rclpy.spin_once(node, timeout_sec=0.1)
+			time.sleep(period_s)
+
+		for _ in range(steps):
+			node.set_joint_velocities(reverse_vels, duration=duration_s)
+			rclpy.spin_once(node, timeout_sec=0.1)
+			time.sleep(period_s)
+	finally:
+		rclpy.shutdown()
+
+
+def run_single_pose_test(hold_s=1.0):
+	node = HelloNode.quick_create("single_pose_test", wait_for_first_pointcloud=False)
+	if not wait_for_joint_state(node):
+		node.get_logger().error("Timed out waiting for joint states. Aborting single pose test.")
+		rclpy.shutdown()
+		return
+
+	start_pose = {
+		"lift": 0.4,
+		"arm": 0.0,
+		"wrist_pitch": 0.0,
+		"wrist_roll": 0.0,
+		"wrist_yaw": 0.0,
+		"stretch_gripper": 0.0,
+		"head_pan": 0.0,
+		"head_tilt": 0.0,
+		"base_translate": 0.0,
+		"base_rotate": 0.0,
+	}
+
+	middle_pose = {
+		"lift": 0.6,
+		"arm": 0.2,
+		"wrist_pitch": 0.0,
+		"wrist_roll": -pi / 4,
+		"wrist_yaw": pi / 2,
+		"stretch_gripper": 0.0,
+		"head_pan": -pi / 2,
+		"head_tilt": -pi / 4,
+		"base_translate": 0.0,
+		"base_rotate": 0.0,
+	}
+
+	try:
+		node.set_joint_poses(list(start_pose.items()))
+		rclpy.spin_once(node, timeout_sec=0.1)
+		time.sleep(1.0)
+		node.set_joint_poses(list(middle_pose.items()))
+		rclpy.spin_once(node, timeout_sec=0.1)
+		time.sleep(hold_s)
+		node.set_joint_poses(list(start_pose.items()))
+		rclpy.spin_once(node, timeout_sec=0.1)
+		time.sleep(1.0)
+	finally:
+		rclpy.shutdown()
+
+
 def parse_args():
 	parser = argparse.ArgumentParser(description="Run pose or velocity tests.")
 	subparsers = parser.add_subparsers(dest="command", required=True)
@@ -115,6 +244,18 @@ def parse_args():
 	vel_parser.add_argument("--rate", type=float, default=20.0)
 	vel_parser.add_argument("--duration", type=float, default=0.1)
 
+	arm_pose_parser = subparsers.add_parser("arm_pose", help="Run arm-only pose test")
+	arm_pose_parser.add_argument("--steps", type=int, default=10)
+	arm_pose_parser.add_argument("--rate", type=float, default=15.0)
+
+	wrist_vel_parser = subparsers.add_parser("wrist_velocity", help="Run wrist-only velocity test")
+	wrist_vel_parser.add_argument("--steps", type=int, default=40)
+	wrist_vel_parser.add_argument("--rate", type=float, default=20.0)
+	wrist_vel_parser.add_argument("--duration", type=float, default=0.1)
+
+	single_pose_parser = subparsers.add_parser("single_pose", help="Move to a pose, hold, then return")
+	single_pose_parser.add_argument("--hold", type=float, default=1.0)
+
 	return parser.parse_args()
 
 
@@ -124,6 +265,12 @@ def main():
 		run_pose_test(steps=args.steps, rate_hz=args.rate)
 	elif args.command == "velocity":
 		run_velocity_test(steps=args.steps, rate_hz=args.rate, duration_s=args.duration)
+	elif args.command == "arm_pose":
+		run_arm_only_pose_test(steps=args.steps, rate_hz=args.rate)
+	elif args.command == "wrist_velocity":
+		run_wrist_only_velocity_test(steps=args.steps, rate_hz=args.rate, duration_s=args.duration)
+	elif args.command == "single_pose":
+		run_single_pose_test(hold_s=args.hold)
 
 
 if __name__ == "__main__":
