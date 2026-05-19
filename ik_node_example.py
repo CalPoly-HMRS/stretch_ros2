@@ -30,7 +30,7 @@ class IkExampleNode(HelloNode):
         marker.color.g = 0.4
         marker.color.b = 0.9
         marker.color.a = 0.9
-        marker.lifetime = Duration(seconds=10.0).to_msg()
+        marker.lifetime = Duration(seconds=20.0).to_msg()
 
         start = Point()
         start.x = float(start_point[0])
