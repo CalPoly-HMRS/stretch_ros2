@@ -515,6 +515,10 @@ class StretchIkRos:
         # Solve IK for a 3D point without orientation constraints.
         q_init = q_init or self.get_current_configuration()
         if fixed_joints:
+            if isinstance(fixed_joints, (list, tuple, set)):
+                fixed_joints = {
+                    name: self._get_q_value(q_init, name) for name in fixed_joints
+                }
             q_init = list(q_init)
             for name, value in fixed_joints.items():
                 q_init[self._get_link_index(name)] = value
@@ -616,6 +620,10 @@ class StretchIkRos:
         # Solve IK for a full pose; optional pretarget helps convergence.
         q_init = q_init or self.get_current_configuration()
         if fixed_joints:
+            if isinstance(fixed_joints, (list, tuple, set)):
+                fixed_joints = {
+                    name: self._get_q_value(q_init, name) for name in fixed_joints
+                }
             q_init = list(q_init)
             for name, value in fixed_joints.items():
                 q_init[self._get_link_index(name)] = value
