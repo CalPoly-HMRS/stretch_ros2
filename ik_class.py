@@ -275,6 +275,11 @@ class StretchIkRos:
                 return alt
         return name
 
+    def _has_link(self, name):
+        """Return True if the chain contains a link/joint name."""
+        resolved = self._resolve_chain_name(name)
+        return resolved in [link.name for link in self.chain.links]
+
     def _get_link_index(self, name):
         """Return the index of a link/joint name in the IKPy chain.
 
@@ -428,14 +433,18 @@ class StretchIkRos:
         # Build an IKPy configuration vector from the current robot state.
         tool_name = self._get_tool_name(tool_name)
         q_vec = [0.0 for _ in self.chain.links]
-        q_base_translation = self._bound_range(
-            "joint_base_translation",
-            self._joint_pos_optional("joint_base_translate", 0.0),
-        )
-        q_base_rotation = self._bound_range(
-            "joint_base_rotation",
-            self._joint_pos_optional("joint_base_rotate", 0.0),
-        )
+        q_base_translation = 0.0
+        q_base_rotation = 0.0
+        if self._has_link("joint_base_translation"):
+            q_base_translation = self._bound_range(
+                "joint_base_translation",
+                self._joint_pos_optional("joint_base_translate", 0.0),
+            )
+        if self._has_link("joint_base_rotation"):
+            q_base_rotation = self._bound_range(
+                "joint_base_rotation",
+                self._joint_pos_optional("joint_base_rotate", 0.0),
+            )
         q_lift = self._bound_range(
             "joint_lift", self._joint_pos("joint_lift")
         )
@@ -446,8 +455,10 @@ class StretchIkRos:
             "joint_wrist_yaw", self._joint_pos("joint_wrist_yaw")
         )
 
-        self._set_q_value(q_vec, "joint_base_translation", q_base_translation)
-        self._set_q_value(q_vec, "joint_base_rotation", q_base_rotation)
+        if self._has_link("joint_base_translation"):
+            self._set_q_value(q_vec, "joint_base_translation", q_base_translation)
+        if self._has_link("joint_base_rotation"):
+            self._set_q_value(q_vec, "joint_base_rotation", q_base_rotation)
         self._set_q_value(q_vec, "joint_lift", q_lift)
         for arm_joint in [
             "joint_arm_l0",
@@ -536,13 +547,13 @@ class StretchIkRos:
         q_init = self.get_current_configuration(tool_name)
         fixed_joints = dict(fixed_joints or {})
 
-        if not allow_base_translation:
+        if not allow_base_translation and self._has_link("joint_base_translation"):
             fixed_joints.setdefault(
                 "joint_base_translation",
                 self._get_q_value(q_init, "joint_base_translation"),
             )
 
-        if not allow_base_rotation:
+        if not allow_base_rotation and self._has_link("joint_base_rotation"):
             fixed_joints.setdefault(
                 "joint_base_rotation",
                 self._get_q_value(q_init, "joint_base_rotation"),
@@ -666,8 +677,16 @@ class StretchIkRos:
         """
         # Convert IKPy solution into joint commands via HelloNode.set_joint_poses().
         tool_name = self._get_tool_name(tool_name)
-        q_base_translation = self._get_q_value(q_soln, "joint_base_translation")
-        q_base_rotation = self._get_q_value(q_soln, "joint_base_rotation")
+        q_base_translation = (
+            self._get_q_value(q_soln, "joint_base_translation")
+            if self._has_link("joint_base_translation")
+            else 0.0
+        )
+        q_base_rotation = (
+            self._get_q_value(q_soln, "joint_base_rotation")
+            if self._has_link("joint_base_rotation")
+            else 0.0
+        )
         q_lift = self._get_q_value(q_soln, "joint_lift")
         q_arm = (
             self._get_q_value(q_soln, "joint_arm_l0")
@@ -678,12 +697,15 @@ class StretchIkRos:
         q_yaw = self._get_q_value(q_soln, "joint_wrist_yaw")
 
         joint_poses = [
-            ("base_translate", q_base_translation),
-            ("base_rotate", q_base_rotation),
             ("lift", q_lift),
             ("arm", q_arm),
             ("wrist_yaw", q_yaw),
         ]
+
+        if self._has_link("joint_base_translation"):
+            joint_poses.insert(0, ("base_translate", q_base_translation))
+        if self._has_link("joint_base_rotation"):
+            joint_poses.insert(0, ("base_rotate", q_base_rotation))
 
         if tool_name == "tool_stretch_dex_wrist":
             joint_poses.extend(
@@ -725,8 +747,16 @@ class StretchIkRos:
         max_accel = max_accel or self.default_max_accel
         dt = 1.0 / float(rate_hz)
 
-        q_base_translation = self._get_q_value(q_soln, "joint_base_translation")
-        q_base_rotation = self._get_q_value(q_soln, "joint_base_rotation")
+        q_base_translation = (
+            self._get_q_value(q_soln, "joint_base_translation")
+            if self._has_link("joint_base_translation")
+            else 0.0
+        )
+        q_base_rotation = (
+            self._get_q_value(q_soln, "joint_base_rotation")
+            if self._has_link("joint_base_rotation")
+            else 0.0
+        )
         q_lift = self._get_q_value(q_soln, "joint_lift")
         q_arm = (
             self._get_q_value(q_soln, "joint_arm_l0")
@@ -747,12 +777,13 @@ class StretchIkRos:
         )
 
         if control_base_with_pose:
-            self.node.set_joint_poses(
-                [
-                    ("base_translate", q_base_translation),
-                    ("base_rotate", q_base_rotation),
-                ]
-            )
+            base_cmds = []
+            if self._has_link("joint_base_translation"):
+                base_cmds.append(("base_translate", q_base_translation))
+            if self._has_link("joint_base_rotation"):
+                base_cmds.append(("base_rotate", q_base_rotation))
+            if base_cmds:
+                self.node.set_joint_poses(base_cmds)
 
         start_time = time.time()
         prev_velocities = {}
@@ -833,8 +864,16 @@ class StretchIkRos:
         max_accel = max_accel or self.default_max_accel
         dt = 1.0 / float(rate_hz)
 
-        q_base_translation = self._get_q_value(q_soln, "joint_base_translation")
-        q_base_rotation = self._get_q_value(q_soln, "joint_base_rotation")
+        q_base_translation = (
+            self._get_q_value(q_soln, "joint_base_translation")
+            if self._has_link("joint_base_translation")
+            else 0.0
+        )
+        q_base_rotation = (
+            self._get_q_value(q_soln, "joint_base_rotation")
+            if self._has_link("joint_base_rotation")
+            else 0.0
+        )
         q_lift = self._get_q_value(q_soln, "joint_lift")
         q_arm = (
             self._get_q_value(q_soln, "joint_arm_l0")
@@ -855,12 +894,13 @@ class StretchIkRos:
         )
 
         if control_base_with_pose:
-            self.node.set_joint_poses(
-                [
-                    ("base_translate", q_base_translation),
-                    ("base_rotate", q_base_rotation),
-                ]
-            )
+            base_cmds = []
+            if self._has_link("joint_base_translation"):
+                base_cmds.append(("base_translate", q_base_translation))
+            if self._has_link("joint_base_rotation"):
+                base_cmds.append(("base_rotate", q_base_rotation))
+            if base_cmds:
+                self.node.set_joint_poses(base_cmds)
 
         start_time = time.time()
         prev_velocities = {}
