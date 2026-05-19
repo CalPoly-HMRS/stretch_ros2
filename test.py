@@ -110,7 +110,7 @@ def run_single_pose_test(hold_s=1.0):
 		return
 
 	start_pose = {
-		"lift": 0.4,
+		"lift": 0.6,
 		"arm": 0.1,
 		"wrist_pitch": 0.0,
 		"wrist_roll": 0.0,
@@ -123,7 +123,7 @@ def run_single_pose_test(hold_s=1.0):
 	}
 
 	middle_pose = {
-		"lift": 0.6,
+		"lift": 0.4,
 		"arm": 0.3,
 		"wrist_pitch": 0.0,
 		"wrist_roll": -pi / 4,
@@ -138,13 +138,13 @@ def run_single_pose_test(hold_s=1.0):
 	try:
 		node.set_joint_poses(list(start_pose.items()))
 		rclpy.spin_once(node, timeout_sec=0.1)
-		time.sleep(1.0)
+		time.sleep(2.5)
 		node.set_joint_poses(list(middle_pose.items()))
 		rclpy.spin_once(node, timeout_sec=0.1)
 		time.sleep(hold_s)
 		node.set_joint_poses(list(start_pose.items()))
 		rclpy.spin_once(node, timeout_sec=0.1)
-		time.sleep(1.0)
+		time.sleep(2.5)
 	finally:
 		rclpy.shutdown()
 
@@ -163,7 +163,7 @@ def parse_args():
 	vel_parser.add_argument("--duration", type=float, default=0.1)
 
 	single_pose_parser = subparsers.add_parser("single_pose", help="Move to a pose, hold, then return")
-	single_pose_parser.add_argument("--hold", type=float, default=1.0)
+	single_pose_parser.add_argument("--hold", type=float, default=2.5)
 
 	return parser.parse_args()
 
