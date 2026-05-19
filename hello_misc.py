@@ -230,55 +230,62 @@ class HelloNode(Node):
         # self.get_logger().info('Publishing: "%s"' % msg.data)
 
     def set_joint_poses(self, joint_poses: list[tuple[str, int]]):
-        joint_names = [joint_pose[0] for joint_pose in joint_poses]
-        joint_values = [joint_pose[1] for joint_pose in joint_poses]
+        requested = {}
+        invalid_names = []
+        for name, value in joint_poses:
+            if name not in self.all_joint_names:
+                invalid_names.append(name)
+            else:
+                requested[name] = value
 
-        # stupid check but I tend to write stupid code so here we are
-        if len(joint_values) != len(joint_names):
-            self.get_logger().error("Length of joint_values does not match length of joint_names")
+        if invalid_names:
+            self.get_logger().error(
+                "Invalid joint name(s): {}. Valid joint names are: {}".format(
+                    invalid_names, self.all_joint_names
+                )
+            )
             return
 
-        # check if all joint names are valid
-        # for joint_name in joint_names:
-        #     if joint_name not in self.all_joint_names:
-        #         self.get_logger().error("Invalid joint name: {}. Valid joint names are: {}".format(joint_name, self.all_joint_names))
-        #         return
+        def get_joint_position(joint_name, default=0.0):
+            try:
+                i = self.joint_state.name.index(joint_name)
+                return self.joint_state.position[i]
+            except ValueError:
+                self.get_logger().warn("Joint name {} not found in current joint state. Using default value {} for this joint.".format(joint_name, default))
+                return default
 
+        arm_extension = (
+            get_joint_position('joint_arm_l0')
+            + get_joint_position('joint_arm_l1')
+            + get_joint_position('joint_arm_l2')
+            + get_joint_position('joint_arm_l3')
+        )
+        gripper_position = get_joint_position('joint_gripper_finger_left')
+
+        pose = {}
         for name in self.all_joint_names:
-            if name not in joint_names:
-                # self.get_logger().warn("Joint name {} not found in input joint_poses. Using current position for this joint.".format(name))
-                joint_names.append(name)
-                joint_values.append(self.joint_state.position[self.joint_state.name.index('joint_' + name)])
-
-                if name == 'arm':
-                    joint_values[-1] = self.joint_state.position[self.joint_state.name.index('joint_arm_l0')] * 4 # stretch states splits the arm length over 4 vars i think... (so mul by 4 to get total arm length)
-                elif name == 'stretch_gripper':
-                    joint_values[-1] = self.joint_state.position[self.joint_state.name.index('joint_gripper_finger_left')] # gripper is separated by finger weirdly
-
-        # NOTE: be careful with gripper, no idea what unit/scale it is... I think the "move_to_pos" in the driver takes the "finger" value whatever the hell that is (then it converts it to the -100 to 100?)
-        # I think the joint_state has it in the "finger" state already but umm... yeah...
-
-        # since we added every valid one if it does not exist, then all excess ones were not valid/not in all_joint_names
-        if len(joint_names) != len(self.all_joint_names):
-            self.get_logger().error("You messed up the joint names or smth. Here are the valid joint names: {}".format(self.all_joint_names))
-
-            for joint_name in joint_names: # find the invalid one(s) just to laugh at the user more
-                if joint_name not in self.all_joint_names:
-                    self.get_logger().error("Invalid joint name: {}. Valid joint names are: {}".format(joint_name, self.all_joint_names))
-                
-            return
+            if name in requested:
+                pose[name] = requested[name]
+            elif name == 'arm':
+                pose[name] = arm_extension
+            elif name == 'stretch_gripper':
+                pose[name] = gripper_position
+            elif name in ['base_translate', 'base_rotate']:
+                pose[name] = 0.0
+            else:
+                pose[name] = get_joint_position('joint_' + name)
 
         qpos = np.zeros(self.Idx.num_joints)
-        qpos[self.Idx.LIFT] = joint_values[joint_names.index('lift')]
-        qpos[self.Idx.ARM] = joint_values[joint_names.index('arm')]
-        qpos[self.Idx.WRIST_PITCH] = joint_values[joint_names.index('wrist_pitch')]
-        qpos[self.Idx.WRIST_ROLL] = joint_values[joint_names.index('wrist_roll')]
-        qpos[self.Idx.WRIST_YAW] = joint_values[joint_names.index('wrist_yaw')]
-        qpos[self.Idx.GRIPPER] = joint_values[joint_names.index('stretch_gripper')]
-        qpos[self.Idx.BASE_TRANSLATE] = joint_values[joint_names.index('base_translate')]
-        qpos[self.Idx.BASE_ROTATE] = joint_values[joint_names.index('base_rotate')]
-        qpos[self.Idx.HEAD_PAN] = joint_values[joint_names.index('head_pan')]
-        qpos[self.Idx.HEAD_TILT] = joint_values[joint_names.index('head_tilt')]
+        qpos[self.Idx.LIFT] = pose['lift']
+        qpos[self.Idx.ARM] = pose['arm']
+        qpos[self.Idx.WRIST_PITCH] = pose['wrist_pitch']
+        qpos[self.Idx.WRIST_ROLL] = pose['wrist_roll']
+        qpos[self.Idx.WRIST_YAW] = pose['wrist_yaw']
+        qpos[self.Idx.GRIPPER] = pose['stretch_gripper']
+        qpos[self.Idx.BASE_TRANSLATE] = pose['base_translate']
+        qpos[self.Idx.BASE_ROTATE] = pose['base_rotate']
+        qpos[self.Idx.HEAD_PAN] = pose['head_pan']
+        qpos[self.Idx.HEAD_TILT] = pose['head_tilt']
         
         self.publish_joint_pose(qpos)
 
