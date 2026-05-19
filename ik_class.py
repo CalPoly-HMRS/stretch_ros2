@@ -236,22 +236,44 @@ class StretchIkRos:
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         modified_urdf.save(out_path)
 
-    @staticmethod
-    def _bound_range(chain, name, value):
+    def _bound_range(self, name, value):
         """Clamp a value to an IKPy link's bounds.
 
         Args:
-            chain: IKPy Chain instance.
             name: Link/joint name in the chain.
             value: Candidate value to clamp.
 
         Returns:
             Clamped value within the link's bounds.
         """
-        names = [link.name for link in chain.links]
-        index = names.index(name)
-        bounds = chain.links[index].bounds
+        index = self._get_link_index(name)
+        bounds = self.chain.links[index].bounds
         return min(max(value, bounds[0]), bounds[1])
+
+    def _resolve_chain_name(self, name):
+        """Resolve a name to the actual IKPy chain link name.
+
+        IKPy stores link names, while many callers use joint names. This
+        helper maps between joint_*/link_* variants when needed.
+
+        Args:
+            name: Link or joint name to resolve.
+
+        Returns:
+            Resolved chain link name.
+        """
+        names = [link.name for link in self.chain.links]
+        if name in names:
+            return name
+        if name.startswith("joint_"):
+            alt = "link_" + name[len("joint_"):]
+            if alt in names:
+                return alt
+        if name.startswith("link_"):
+            alt = "joint_" + name[len("link_"):]
+            if alt in names:
+                return alt
+        return name
 
     def _get_link_index(self, name):
         """Return the index of a link/joint name in the IKPy chain.
@@ -262,10 +284,11 @@ class StretchIkRos:
         Returns:
             Integer index into `self.chain.links`.
         """
+        resolved = self._resolve_chain_name(name)
         names = [link.name for link in self.chain.links]
-        if name not in names:
+        if resolved not in names:
             raise ValueError(f"Unknown joint/link name: {name}")
-        return names.index(name)
+        return names.index(resolved)
 
     def _get_q_value(self, q_vec, name):
         """Return a joint value from an IKPy vector by joint name.
@@ -406,23 +429,21 @@ class StretchIkRos:
         tool_name = self._get_tool_name(tool_name)
         q_vec = [0.0 for _ in self.chain.links]
         q_base_translation = self._bound_range(
-            self.chain,
             "joint_base_translation",
             self._joint_pos_optional("joint_base_translate", 0.0),
         )
         q_base_rotation = self._bound_range(
-            self.chain,
             "joint_base_rotation",
             self._joint_pos_optional("joint_base_rotate", 0.0),
         )
         q_lift = self._bound_range(
-            self.chain, "joint_lift", self._joint_pos("joint_lift")
+            "joint_lift", self._joint_pos("joint_lift")
         )
         # IKPy models a 4-link telescoping arm; divide total extension equally.
         arm_extension = self._get_arm_extension()
-        q_arml = self._bound_range(self.chain, "joint_arm_l0", arm_extension / 4.0)
+        q_arml = self._bound_range("joint_arm_l0", arm_extension / 4.0)
         q_yaw = self._bound_range(
-            self.chain, "joint_wrist_yaw", self._joint_pos("joint_wrist_yaw")
+            "joint_wrist_yaw", self._joint_pos("joint_wrist_yaw")
         )
 
         self._set_q_value(q_vec, "joint_base_translation", q_base_translation)
@@ -442,10 +463,10 @@ class StretchIkRos:
 
         if tool_name == "tool_stretch_dex_wrist":
             q_pitch = self._bound_range(
-                self.chain, "joint_wrist_pitch", self._joint_pos("joint_wrist_pitch")
+                "joint_wrist_pitch", self._joint_pos("joint_wrist_pitch")
             )
             q_roll = self._bound_range(
-                self.chain, "joint_wrist_roll", self._joint_pos("joint_wrist_roll")
+                "joint_wrist_roll", self._joint_pos("joint_wrist_roll")
             )
             self._set_q_value(q_vec, "joint_wrist_pitch", q_pitch)
             self._set_q_value(q_vec, "joint_wrist_roll", q_roll)
