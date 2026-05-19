@@ -362,15 +362,22 @@ class StretchIkRos:
         Returns:
             Tool name string (e.g., tool_stretch_gripper).
         """
+        tool_aliases = {
+            "eoa_wrist_dw3_tool_sg3": "tool_stretch_dex_wrist",
+            "eoa_wrist_dw3_tool_sg3_v2": "tool_stretch_dex_wrist",
+            "eoa_wrist_dw3_tool": "tool_stretch_dex_wrist",
+            "eoa_wrist_dw3": "tool_stretch_dex_wrist",
+            "stretch_gripper": "tool_stretch_gripper",
+        }
         # Prefer explicit tool_name, otherwise try to read it from the node.
         if tool_name:
-            return tool_name
+            return tool_aliases.get(tool_name, tool_name)
         if self.tool_name:
-            return self.tool_name
+            return tool_aliases.get(self.tool_name, self.tool_name)
         if hasattr(self.node, "get_tool"):
             tool = self.node.get_tool()
             if isinstance(tool, str) and tool:
-                return tool
+                return tool_aliases.get(tool, tool)
         return "tool_stretch_gripper"
 
     def _joint_pos(self, name):
