@@ -44,6 +44,13 @@ class IkExampleNode(HelloNode):
         target_rpy = [0.0, 0.0, -np.pi / 2]
         target_pose = self.ik.make_target_pose(target_point, target_rpy)
         self._publish_target_marker(target_point)
+        rclpy.spin_once(self, timeout_sec=0.1) # ensures it gets published
+
+        # lets the user decide whether to move or not
+        answer = input("Move to target? [y/N]: ").strip().lower()
+        if not answer.startswith("y"):
+            self.get_logger().info("Skipping move.")
+            return
 
         q_init = self.ik.get_current_configuration()
         q_soln = self.ik.solve_pose_ik(target_pose, q_init=q_init, fixed_joints=["base_rotate", "base_translate"])
