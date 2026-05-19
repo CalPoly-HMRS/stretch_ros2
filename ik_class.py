@@ -1,6 +1,7 @@
 import os
 import time
 from contextlib import contextmanager
+from pathlib import Path
 
 import ikpy.chain
 import ikpy.utils.geometry
@@ -115,13 +116,8 @@ class StretchIkRos:
         Returns:
             Absolute path to stretch.urdf in the stretch_user directory.
         """
-        return str(
-            (
-                hu.get_fleet_directory()
-                / "exported_urdf"
-                / "stretch.urdf"
-            ).absolute()
-        )
+        fleet_dir = Path(hu.get_fleet_directory())
+        return str((fleet_dir / "exported_urdf" / "stretch.urdf").absolute())
 
     @staticmethod
     def _make_chain(urdf_path, cartesian_urdf_path):

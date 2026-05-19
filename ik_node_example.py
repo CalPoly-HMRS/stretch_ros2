@@ -19,7 +19,7 @@ class IkExampleNode(HelloNode):
         target_pose = self.ik.make_target_pose(target_point, target_rpy)
 
         q_init = self.ik.get_current_configuration()
-        q_soln = self.ik.solve_pose_ik(target_pose, q_init=q_init)
+        q_soln = self.ik.solve_pose_ik(target_pose, q_init=q_init, fixed_joints=["base_rotate", "base_translate"])
         error = self.ik.compute_position_error(q_soln, target_point)
         self.get_logger().info(f"IK error: {error:.4f} m")
 
