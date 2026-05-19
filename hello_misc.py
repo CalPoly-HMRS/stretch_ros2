@@ -252,6 +252,8 @@ class HelloNode(Node):
 
                 if name == 'arm':
                     joint_values[-1] = self.joint_state.position[self.joint_state.name.index('joint_arm_l0')] * 4 # stretch states splits the arm length over 4 vars i think... (so mul by 4 to get total arm length)
+                elif name == 'gripper':
+                    joint_values[-1] = self.joint_state.position[self.joint_state.name.index('joint_gripper_finger_left')] # gripper is separated by finger weirdly
 
         # NOTE: be careful with gripper, no idea what unit/scale it is... I think the "move_to_pos" in the driver takes the "finger" value whatever the hell that is (then it converts it to the -100 to 100?)
         # I think the joint_state has it in the "finger" state already but umm... yeah...
