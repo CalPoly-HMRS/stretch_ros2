@@ -8,7 +8,7 @@ from serial import SerialException
 import stretch_body.hello_utils as hu
 from hello_helpers.hello_misc import *
 from hello_helpers.simple_command_group import SimpleCommandGroup
-from trajectory_components import get_trajectory_components
+from .trajectory_components import get_trajectory_components
 
 from rclpy.action.server import ServerGoalHandle
 
@@ -23,7 +23,7 @@ from rclpy.duration import Duration
 from control_msgs.action import FollowJointTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint, MultiDOFJointTrajectory, JointTrajectory
 
-from command_groups import HeadPanCommandGroup, HeadTiltCommandGroup, \
+from .command_groups import HeadPanCommandGroup, HeadTiltCommandGroup, \
                            WristYawCommandGroup, WristPitchCommandGroup, WristRollCommandGroup, \
                            GripperCommandGroup, ArmCommandGroup, LiftCommandGroup, \
                            MobileBaseCommandGroup
