@@ -265,6 +265,20 @@ class StretchIkRos:
             Resolved chain link name.
         """
         names = [link.name for link in self.chain.links]
+        aliases = {
+            "lift": "joint_lift",
+            "arm": "joint_arm_l0",
+            "wrist_pitch": "joint_wrist_pitch",
+            "wrist_roll": "joint_wrist_roll",
+            "wrist_yaw": "joint_wrist_yaw",
+            "stretch_gripper": "joint_gripper_finger_left",
+            "head_pan": "joint_head_pan",
+            "head_tilt": "joint_head_tilt",
+            "base_translate": "joint_base_translation",
+            "base_rotate": "joint_base_rotation",
+        }
+        if name in aliases:
+            name = aliases[name]
         if name in names:
             return name
         if name.startswith("joint_"):
@@ -308,6 +322,12 @@ class StretchIkRos:
             Joint value as a float.
         """
         return q_vec[self._get_link_index(name)]
+
+    def _get_q_value_safe(self, q_vec, name):
+        """Return a joint value by name, or None if not present."""
+        if not self._has_link(name):
+            return None
+        return self._get_q_value(q_vec, name)
 
     def _set_q_value(self, q_vec, name, value):
         """Set a joint value in an IKPy vector by joint name.
@@ -517,7 +537,9 @@ class StretchIkRos:
         if fixed_joints:
             if isinstance(fixed_joints, (list, tuple, set)):
                 fixed_joints = {
-                    name: self._get_q_value(q_init, name) for name in fixed_joints
+                    name: value
+                    for name in fixed_joints
+                    if (value := self._get_q_value_safe(q_init, name)) is not None
                 }
             q_init = list(q_init)
             for name, value in fixed_joints.items():
@@ -622,7 +644,9 @@ class StretchIkRos:
         if fixed_joints:
             if isinstance(fixed_joints, (list, tuple, set)):
                 fixed_joints = {
-                    name: self._get_q_value(q_init, name) for name in fixed_joints
+                    name: value
+                    for name in fixed_joints
+                    if (value := self._get_q_value_safe(q_init, name)) is not None
                 }
             q_init = list(q_init)
             for name, value in fixed_joints.items():
