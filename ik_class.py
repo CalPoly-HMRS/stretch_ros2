@@ -58,6 +58,7 @@ LINKS_TO_REMOVE = [
     "camera_gyro_frame",
     "camera_gyro_optical_frame",
     "laser",
+    "base_imu",
     "respeaker_base",
 ]
 
@@ -92,6 +93,7 @@ JOINTS_TO_REMOVE = [
     "camera_gyro_joint",
     "camera_gyro_optical_joint",
     "joint_laser",
+    "joint_base_imu",
     "joint_respeaker",
 ]
 
