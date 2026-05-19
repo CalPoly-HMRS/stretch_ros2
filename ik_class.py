@@ -559,7 +559,7 @@ class StretchIkRos:
         self,
         target_point,
         tool_name=None,
-        max_error=1e-2,
+        max_error=0.05,
         allow_base_translation=False,
         allow_base_rotation=False,
         joint_bounds=None,

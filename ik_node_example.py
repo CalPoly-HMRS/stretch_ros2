@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import numpy as np
+import rclpy
 
 from hello_misc import HelloNode
 from ik_class import StretchIkRos
@@ -23,15 +24,21 @@ class IkExampleNode(HelloNode):
         error = self.ik.compute_position_error(q_soln, target_point)
         self.get_logger().info(f"IK error: {error:.4f} m")
 
-        if error < 1e-2:
+        if error < 0.5:
             self.ik.move_to_configuration(q_soln)
         else:
             self.get_logger().warn("IK solution outside tolerance")
 
 
 def main():
-    node = IkExampleNode()
-    node.run_once()
+    node = None
+    try:
+        node = IkExampleNode()
+        node.run_once()
+    finally:
+        if node is not None:
+            node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":
