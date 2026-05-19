@@ -58,7 +58,7 @@ def run_pose_test(steps=10, rate_hz=15.0):
 			node.set_joint_poses(list(joint_values.items()))
 			rclpy.spin_once(node, timeout_sec=0.1)
 			time.sleep(period_s)
-
+		time.sleep(1.0)  # hold the pose for a moment before moving back
 		for _ in range(steps):
 			joint_values = {k: v - deltas[k] for k, v in joint_values.items()}
 			node.set_joint_poses(list(joint_values.items()))

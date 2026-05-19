@@ -215,7 +215,7 @@ class StretchDriver(Node):
                 Idx = get_Idx(self.robot.params['tool'])
             except UnsupportedToolError:
                 self.get_logger().error('Unsupported tool for streaming position control.')
-            if len(qvels) != Idx.num_joints or len(qvels) != Idx.num_joints + 1:
+            if len(qvels) != Idx.num_joints and len(qvels) != Idx.num_joints + 1:
                 self.get_logger().error('Received qvels does not match the number of joints in the robot (or + 1 for duration)')
                 return
             
