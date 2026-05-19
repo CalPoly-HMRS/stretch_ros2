@@ -1,3 +1,13 @@
+"""
+Setup notes (commands run on the robot):
+- Install IK dependencies:
+    `pip install --user ikpy urdfpy`
+- urdfpy pins an old networkx, which breaks on Python 3.10. Override with:
+    `pip install --user "networkx>=2.8,<3"`
+- urdfpy 0.0.22 still uses `np.float` (removed in NumPy >= 1.24), so we
+    define it manually below to keep URDF parsing working.
+"""
+
 import os
 import time
 from contextlib import contextmanager
@@ -7,6 +17,13 @@ import ikpy.chain
 import ikpy.utils.geometry
 import numpy as np
 import stretch_body.hello_utils as hu
+
+# Compatibility shim for urdfpy on NumPy >= 1.24.
+if not hasattr(np, "float"):
+    np.float = float
+
+# dont ask...
+
 import urdfpy
 
 
