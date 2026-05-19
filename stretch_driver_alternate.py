@@ -215,7 +215,7 @@ class StretchDriver(Node):
                 Idx = get_Idx(self.robot.params['tool'])
             except UnsupportedToolError:
                 self.get_logger().error('Unsupported tool for streaming position control.')
-            if len(qvels) != Idx.num_joints or len(qvels) != Idx.num_joints + 1:
+            if len(qvels) != Idx.num_joints and len(qvels) != Idx.num_joints + 1:
                 self.get_logger().error('Received qvels does not match the number of joints in the robot (or + 1 for duration)')
                 return
             
@@ -978,6 +978,8 @@ class StretchDriver(Node):
         self.node_name = self.get_name()
 
         self.get_logger().info("For use with S T R E T C H (TM) RESEARCH EDITION from Hello Robot Inc.")
+        self.get_logger().info("WARNING: This is a modified version of the official stretch_driver - Anay N")
+        self.get_logger().info("Use with caution. You can ask me for help at annagar@calpoly.edu");
 
         self.get_logger().info("{0} started".format(self.node_name))
         
