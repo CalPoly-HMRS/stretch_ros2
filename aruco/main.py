@@ -61,6 +61,40 @@ def _rotate_corners_90_clockwise(
 	return rotated
 
 
+def _axes_within_frame(
+	rvec: np.ndarray,
+	tvec: np.ndarray,
+	camera_matrix: np.ndarray,
+	dist_coeffs: np.ndarray,
+	axis_length: float,
+	frame_shape: tuple[int, int, int],
+) -> bool:
+	axis_points = np.array(
+		[
+			[0.0, 0.0, 0.0],
+			[axis_length, 0.0, 0.0],
+			[0.0, axis_length, 0.0],
+			[0.0, 0.0, axis_length],
+		],
+		dtype=np.float32,
+	)
+	image_points, _ = cv2.projectPoints(
+		axis_points,
+		rvec,
+		tvec,
+		camera_matrix,
+		dist_coeffs,
+	)
+	points = image_points.reshape(-1, 2)
+	h, w = frame_shape[:2]
+	return bool(
+		(np.all(points[:, 0] >= 0))
+		and (np.all(points[:, 0] < w))
+		and (np.all(points[:, 1] >= 0))
+		and (np.all(points[:, 1] < h))
+	)
+
+
 def main() -> None:
 	rclpy.init()
 	node = rclpy.create_node("aruco_detector")
@@ -157,14 +191,22 @@ def main() -> None:
 			visualizer.draw_detected_markers(display_frame, display_corners, ids)
 
 			if rvec is not None and tvec is not None:
-				visualizer.draw_marker_axes(
-					display_frame,
-					display_camera_matrix,
-					dist_coeffs,
+				if _axes_within_frame(
 					rvec,
 					tvec,
-					axis_length=config.AXIS_LENGTH,
-				)
+					display_camera_matrix,
+					dist_coeffs,
+					config.AXIS_LENGTH,
+					display_frame.shape,
+				):
+					visualizer.draw_marker_axes(
+						display_frame,
+						display_camera_matrix,
+						dist_coeffs,
+						rvec,
+						tvec,
+						axis_length=config.AXIS_LENGTH,
+					)
 				if selected_id is not None:
 					tf_publisher.publish(rvec, tvec, selected_id)
 
