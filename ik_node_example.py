@@ -69,9 +69,14 @@ class IkExampleNode(HelloNode):
     def run_once(self):
         # Example target pose (x, y, z) in base_link with a simple yaw.
         target_point = [-0.043, -0.441, 0.654]
-        target_rpy = [0.0, 0.0, -np.pi / 2]
-        target_pose = self.ik.make_target_pose(target_point, target_rpy)
+
+        # Example target orientation (roll, pitch, yaw) in base_link.
+        # target_rpy = [0.0, 0.0, 0.0]  # set to [roll, pitch, yaw] to enforce orientation of wrist
+        target_rpy = None  # set to [roll, pitch, yaw] to enforce orientation
+
         q_init = self.ik.get_current_configuration(tool_name="tool_stretch_dex_wrist")
+
+        # just viz stuff
         current_point = self.ik.chain.forward_kinematics(q_init)[:3, 3]
         self._publish_target_marker(target_point)
         self._publish_line_marker(current_point, target_point)
@@ -83,11 +88,19 @@ class IkExampleNode(HelloNode):
             self.get_logger().info("Skipping move.")
             return
 
-        q_soln = self.ik.solve_pose_ik(
-            target_pose,
-            q_init=q_init,
-            fixed_joints=["base_rotate", "base_translate"],
-        )
+        if target_rpy is None:
+            q_soln = self.ik.solve_point_ik(
+                target_point,
+                q_init=q_init,
+                fixed_joints=["base_rotate", "base_translate"],
+            )
+        else:
+            target_pose = self.ik.make_target_pose(target_point, target_rpy)
+            q_soln = self.ik.solve_pose_ik(
+                target_pose,
+                q_init=q_init,
+                fixed_joints=["base_rotate", "base_translate"],
+            )
         error = self.ik.compute_position_error(q_soln, target_point)
         self.get_logger().info(f"IK error: {error:.4f} m")
 
