@@ -37,6 +37,7 @@ CAMERA_PROFILE_WRIST_INDEX: int = 18
 
 
 # Display settings
+SHOW_WINDOW: bool = True
 WINDOW_NAME: str = "Full Live Tracking"
 FPS_MEASUREMENT_INTERVAL_S: float = 1.0
 NO_FRAME_LOG_INTERVAL_S: float = 2.0

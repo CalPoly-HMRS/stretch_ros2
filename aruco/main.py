@@ -9,7 +9,7 @@ import numpy as np
 import rclpy
 
 from aruco__tf_publisher import ArucoTfPublisher
-from aruco_detector import ArucoDetector, estimate_single_marker_pose, rotate_camera_matrix_90_clockwise
+from aruco_detector import ArucoDetector, estimate_single_marker_pose
 from camera import CameraManager
 import config
 from visualization import Visualizer
@@ -44,21 +44,6 @@ def _select_marker_index(ids: list[int], target_ids: tuple[int, ...]) -> int | N
 					return i
 		return None
 	return 0
-
-
-def _rotate_corners_90_clockwise(
-	corners: list,
-	image_width: int,
-	image_height: int,
-) -> list:
-	rotated = []
-	for corner in corners:
-		pts = corner.reshape(-1, 2)
-		rotated_pts = np.empty_like(pts)
-		rotated_pts[:, 0] = (image_height - 1) - pts[:, 1]
-		rotated_pts[:, 1] = pts[:, 0]
-		rotated.append(rotated_pts.reshape(corner.shape))
-	return rotated
 
 
 def _axes_within_frame(
@@ -123,7 +108,9 @@ def main() -> None:
 	camera_matrix, dist_coeffs = intrinsics
 
 	detector = ArucoDetector()
-	visualizer = Visualizer(window_name=config.WINDOW_NAME)
+	visualizer = None
+	if config.SHOW_WINDOW:
+		visualizer = Visualizer(window_name=config.WINDOW_NAME)
 
 	target_ids = tuple(config.TARGET_TAG_IDS)
 	last_fps_time = time.time()
@@ -171,37 +158,21 @@ def main() -> None:
 			marker_count = 0 if ids is None else len(ids)
 			status = "TRACKING" if marker_count > 0 else "SEARCHING"
 
-			display_frame = frame
-			display_corners = corners
-			display_camera_matrix = camera_matrix
-			if is_head_camera:
-				display_frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
-				display_camera_matrix = rotate_camera_matrix_90_clockwise(
-					camera_matrix,
-					display_frame.shape[1],
-					display_frame.shape[0],
-				)
-				if corners is not None:
-					display_corners = _rotate_corners_90_clockwise(
-						corners,
-						frame.shape[1],
-						frame.shape[0],
-					)
-
-			visualizer.draw_detected_markers(display_frame, display_corners, ids)
+			if visualizer is not None:
+				visualizer.draw_detected_markers(frame, corners, ids)
 
 			if rvec is not None and tvec is not None:
-				if _axes_within_frame(
+				if visualizer is not None and _axes_within_frame(
 					rvec,
 					tvec,
-					display_camera_matrix,
+					camera_matrix,
 					dist_coeffs,
 					config.AXIS_LENGTH,
-					display_frame.shape,
+					frame.shape,
 				):
 					visualizer.draw_marker_axes(
-						display_frame,
-						display_camera_matrix,
+						frame,
+						camera_matrix,
 						dist_coeffs,
 						rvec,
 						tvec,
@@ -210,34 +181,40 @@ def main() -> None:
 				if selected_id is not None:
 					tf_publisher.publish(rvec, tvec, selected_id)
 
-			visualizer.draw_hud(
-				display_frame,
-				fps=fps,
-				marker_count=marker_count,
-				status=status,
-				selected_id=selected_id,
-				angle_error=None,
-				wrist_yaw=None,
-				tvec=tvec,
-				pre_guard_vel=None,
-				post_guard_vel=None,
-				yaw_limits=None,
-				show_fps=config.SHOW_FPS,
-				show_marker_count=config.SHOW_MARKER_COUNT,
-				show_status=config.SHOW_STATUS,
-				show_selected_id=config.SHOW_SELECTED_ID,
-				show_angle_error=False,
-				show_wrist_yaw=False,
-				show_tvec=config.SHOW_TVEC,
-				show_velocity_debug=False,
-				show_yaw_limits=False,
-			)
+			if visualizer is not None:
+				display_frame = frame
+				if is_head_camera:
+					display_frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
 
-			if not visualizer.show_frame(display_frame):
-				break
+				visualizer.draw_hud(
+					display_frame,
+					fps=fps,
+					marker_count=marker_count,
+					status=status,
+					selected_id=selected_id,
+					angle_error=None,
+					wrist_yaw=None,
+					tvec=tvec,
+					pre_guard_vel=None,
+					post_guard_vel=None,
+					yaw_limits=None,
+					show_fps=config.SHOW_FPS,
+					show_marker_count=config.SHOW_MARKER_COUNT,
+					show_status=config.SHOW_STATUS,
+					show_selected_id=config.SHOW_SELECTED_ID,
+					show_angle_error=False,
+					show_wrist_yaw=False,
+					show_tvec=config.SHOW_TVEC,
+					show_velocity_debug=False,
+					show_yaw_limits=False,
+				)
+
+				if not visualizer.show_frame(display_frame):
+					break
 	finally:
 		camera.stop()
-		visualizer.cleanup()
+		if visualizer is not None:
+			visualizer.cleanup()
 		node.destroy_node()
 		rclpy.shutdown()
 
