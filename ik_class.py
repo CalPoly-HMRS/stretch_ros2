@@ -168,17 +168,28 @@ class StretchIkRos:
         original_urdf = urdfpy.URDF.load(urdf_path)
         modified_urdf = original_urdf.copy()
 
-        links_to_remove = [
-            link for link in modified_urdf._links if link.name in LINKS_TO_REMOVE
-        ]
-        for link in links_to_remove:
-            modified_urdf._links.remove(link)
+        target_link = "link_grasp_center"
+        joint_by_child = {joint.child: joint for joint in modified_urdf._joints}
+        keep_links = set()
+        keep_joints = set()
 
-        joints_to_remove = [
-            joint for joint in modified_urdf._joints if joint.name in JOINTS_TO_REMOVE
+        link = target_link
+        while True:
+            keep_links.add(link)
+            if link == "base_link":
+                break
+            if link not in joint_by_child:
+                raise ValueError(f"Unable to build chain to {target_link}")
+            joint = joint_by_child[link]
+            keep_joints.add(joint.name)
+            link = joint.parent
+
+        modified_urdf._links = [
+            link for link in modified_urdf._links if link.name in keep_links
         ]
-        for joint in joints_to_remove:
-            modified_urdf._joints.remove(joint)
+        modified_urdf._joints = [
+            joint for joint in modified_urdf._joints if joint.name in keep_joints
+        ]
 
         # Add virtual base yaw and translation joints for IK.
         # IKPy does not support continuous wheel rotation joints.
