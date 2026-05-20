@@ -14,7 +14,7 @@ class IkExampleNode(HelloNode):
     def __init__(self):
         super().__init__()
         self.main("ik_example_node", "ik_example_node", wait_for_first_pointcloud=False)
-        self.ik = StretchIkRos(self)
+        self.ik = StretchIkRos(self, tool_name="tool_stretch_dex_wrist")
         self.target_marker_pub = self.create_publisher(Marker, "ik_target_marker", 10)
 
     def _publish_line_marker(self, start_point, end_point, frame_id="base_link"):
@@ -71,7 +71,7 @@ class IkExampleNode(HelloNode):
         target_point = [-0.043, -0.441, 0.654]
         target_rpy = [0.0, 0.0, -np.pi / 2]
         target_pose = self.ik.make_target_pose(target_point, target_rpy)
-        q_init = self.ik.get_current_configuration()
+        q_init = self.ik.get_current_configuration(tool_name="tool_stretch_dex_wrist")
         current_point = self.ik.chain.forward_kinematics(q_init)[:3, 3]
         self._publish_target_marker(target_point)
         self._publish_line_marker(current_point, target_point)
@@ -83,12 +83,16 @@ class IkExampleNode(HelloNode):
             self.get_logger().info("Skipping move.")
             return
 
-        q_soln = self.ik.solve_pose_ik(target_pose, q_init=q_init, fixed_joints=["base_rotate", "base_translate"])
+        q_soln = self.ik.solve_pose_ik(
+            target_pose,
+            q_init=q_init,
+            fixed_joints=["base_rotate", "base_translate"],
+        )
         error = self.ik.compute_position_error(q_soln, target_point)
         self.get_logger().info(f"IK error: {error:.4f} m")
 
         if error < 0.5:
-            self.ik.move_to_configuration(q_soln)
+            self.ik.move_to_configuration(q_soln, tool_name="tool_stretch_dex_wrist")
         else:
             self.get_logger().warn("IK solution outside tolerance")
 
