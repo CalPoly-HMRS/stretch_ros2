@@ -1,0 +1,55 @@
+"""Configuration and constants for ArUco detection."""
+
+from __future__ import annotations
+
+from math import pi
+
+# ArUco IDs to track, in priority order.
+# Example: [23, 42, 7] means track ID 23 first, then 42, then 7 if visible.
+# Set to [] to track the first detected marker of any ID.
+TARGET_TAG_IDS: list[int] = [0, 2]
+
+# Set to -1.0 if wrist turns the wrong way for positive angle error.
+WRIST_DIRECTION_SIGN: float = -1.0
+
+# Marker size in meters (50mm = 0.05m)
+MARKER_SIZE_M: float = 0.05
+
+# RealSense camera configuration
+# Device index: 0 for head camera, 1 for wrist camera
+DEVICE_INDEX: int = 1
+
+# Camera profile selection
+# Format: (width, height, fps, format)
+# Index into sorted profiles list for each device
+# Wrist camera examples
+#   18  -> 424x240 @ 60 fps | bgr8
+#   54  -> 640x480 @ 30 fps | bgr8
+#   84  -> 1280x720 @ 15 fps | bgr8
+# Head camera examples
+#   150 -> 960x540 @ 60 fps | bgr8
+#   186 -> 1920x1080 @ 30 fps | bgr8
+CAMERA_PROFILE_HEAD_INDEX: int = 150
+CAMERA_PROFILE_WRIST_INDEX: int = 18
+
+
+# Display settings
+WINDOW_NAME: str = "Full Live Tracking"
+FPS_MEASUREMENT_INTERVAL_S: float = 1.0
+NO_FRAME_LOG_INTERVAL_S: float = 2.0
+CAMERA_TIMEOUT_MS: int = 1500
+
+# Visualization parameters
+ERROR_VISUALIZATION_LENGTH: int = 100
+AXIS_LENGTH: float = 0.025  # Half of marker size
+
+# HUD options
+SHOW_FPS: bool = True
+SHOW_MARKER_COUNT: bool = False
+SHOW_STATUS: bool = True
+SHOW_SELECTED_ID: bool = True
+SHOW_ANGLE_ERROR: bool = True
+SHOW_TVEC: bool = False
+SHOW_WRIST_YAW: bool = True
+SHOW_VELOCITY_DEBUG: bool = False
+SHOW_YAW_LIMITS: bool = False
