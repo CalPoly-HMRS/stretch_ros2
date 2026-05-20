@@ -14,6 +14,8 @@ from ik_class import StretchIkRos
 # Update this list to control which ArUco IDs are considered.
 TARGET_ARUCO_IDS = [0, 2]
 
+GRIPPER_OPEN = 0.1
+GRIPPER_CLOSED = 0.0
 
 class IkArucoExampleNode(HelloNode):
 	def __init__(self):
@@ -21,6 +23,7 @@ class IkArucoExampleNode(HelloNode):
 		self.main("ik_aruco_example_node", "ik_aruco_example_node", wait_for_first_pointcloud=False)
 		self.ik = StretchIkRos(self, tool_name="tool_stretch_dex_wrist")
 		self.target_marker_pub = self.create_publisher(Marker, "ik_target_marker", 10)
+		
 
 	def _publish_line_marker(self, start_point, end_point, frame_id="base_link"):
 		marker = Marker()
@@ -94,6 +97,10 @@ class IkArucoExampleNode(HelloNode):
 		return None, None
 
 	def run_once(self):
+		answer = input("Open gripper? [y/N]: ").strip().lower()
+		if answer.startswith("y"):
+			self.set_joint_poses([("stretch_gripper", GRIPPER_OPEN)])
+
 		marker_id, target_point = self._find_first_aruco_target()
 		if target_point is None:
 			self.get_logger().warn("No aruco_tag_* frame found in TF.")
@@ -120,6 +127,10 @@ class IkArucoExampleNode(HelloNode):
 
 		if error < 0.5:
 			self.ik.move_to_configuration(q_soln, tool_name="tool_stretch_dex_wrist")
+
+			answer = input("Close gripper? [y/N]: ").strip().lower()
+			if answer.startswith("y"):
+				self.set_joint_poses([("stretch_gripper", GRIPPER_CLOSED)])
 		else:
 			self.get_logger().warn("IK solution outside tolerance")
 
