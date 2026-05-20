@@ -19,6 +19,9 @@ MARKER_SIZE_M: float = 0.05
 # Device index: 0 for head camera, 1 for wrist camera
 DEVICE_INDEX: int = 1
 
+# Prompt for camera selection at startup.
+PROMPT_FOR_CAMERA_SELECTION: bool = False
+
 # Camera profile selection
 # Format: (width, height, fps, format)
 # Index into sorted profiles list for each device

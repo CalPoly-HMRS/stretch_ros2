@@ -20,15 +20,31 @@ def _pick_profile_index(device_index: int) -> int:
 	return config.CAMERA_PROFILE_WRIST_INDEX
 
 
+def _prompt_for_device_index(default_index: int) -> int:
+	choice = input("Select camera: [0] head, [1] wrist (default: {default}): ".format(
+		default=default_index
+	)).strip()
+	if choice == "0":
+		return 0
+	if choice == "1":
+		return 1
+	if choice:
+		print("Invalid selection. Using default camera index.")
+	return default_index
+
+
 def main() -> None:
 	rclpy.init()
 	node = rclpy.create_node("aruco_detector")
-	parent_frame = "camera_link" if config.DEVICE_INDEX == 0 else "gripper_camera_link"
+	device_index = config.DEVICE_INDEX
+	if config.PROMPT_FOR_CAMERA_SELECTION:
+		device_index = _prompt_for_device_index(config.DEVICE_INDEX)
+	parent_frame = "camera_link" if device_index == 0 else "gripper_camera_link"
 	tf_publisher = ArucoTfPublisher(node, parent_frame=parent_frame)
 
 	camera = CameraManager(
-		device_index=config.DEVICE_INDEX,
-		profile_index=_pick_profile_index(config.DEVICE_INDEX),
+		device_index=device_index,
+		profile_index=_pick_profile_index(device_index),
 	)
 	if not camera.initialize():
 		node.destroy_node()
