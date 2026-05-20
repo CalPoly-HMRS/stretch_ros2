@@ -14,8 +14,8 @@ from ik_class import StretchIkRos
 # Update this list to control which ArUco IDs are considered.
 TARGET_ARUCO_IDS = [0, 2]
 
-GRIPPER_OPEN = 0.1
-GRIPPER_CLOSED = 0.0
+GRIPPER_OPEN = 0.6
+GRIPPER_CLOSED = 0.2
 
 class IkArucoExampleNode(HelloNode):
 	def __init__(self):
@@ -88,6 +88,7 @@ class IkArucoExampleNode(HelloNode):
 					base_frame,
 					self.tf2_buffer,
 					timeout_s=0.05,
+					verbose=False,
 				)
 				if tag_to_base is None:
 					continue
@@ -103,7 +104,7 @@ class IkArucoExampleNode(HelloNode):
 
 		marker_id, target_point = self._find_first_aruco_target()
 		if target_point is None:
-			self.get_logger().warn("No aruco_tag_* frame found in TF.")
+			# self.get_logger().warn("No aruco_tag_* frame found in TF.")
 			return
 
 		q_init = self.ik.get_current_configuration(tool_name="tool_stretch_dex_wrist")

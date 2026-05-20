@@ -515,7 +515,7 @@ def angle_diff_rad(target_rad, current_rad):
     return diff_rad
 
 
-def get_p1_to_p2_matrix(p1_frame_id, p2_frame_id, tf2_buffer, lookup_time=None, timeout_s=None):
+def get_p1_to_p2_matrix(p1_frame_id, p2_frame_id, tf2_buffer, lookup_time=None, timeout_s=None, verbose=True):
     # If the necessary TF2 transform is successfully looked up, this
     # returns a 4x4 affine transformation matrix that transforms
     # points in the p1_frame_id frame to points in the p2_frame_id.
@@ -533,8 +533,9 @@ def get_p1_to_p2_matrix(p1_frame_id, p2_frame_id, tf2_buffer, lookup_time=None, 
         p1_to_p2_mat = ros2_numpy.numpify(stamped_transform.transform)
         return p1_to_p2_mat, stamped_transform.header.stamp
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-        print('WARNING: get_p1_to_p2_matrix failed to lookup transform from p1_frame_id =', p1_frame_id, ' to p2_frame_id =', p2_frame_id)
-        print('         exception =', e)
+        if verbose:
+            print('WARNING: get_p1_to_p2_matrix failed to lookup transform from p1_frame_id =', p1_frame_id, ' to p2_frame_id =', p2_frame_id)
+            print('         exception =', e)
         return None, None
 
 def bound_ros_command(bounds, ros_pos, fail_out_of_range_goal, clip_ros_tolerance=1e-3):
