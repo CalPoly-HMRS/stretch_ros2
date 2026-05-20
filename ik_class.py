@@ -8,6 +8,9 @@ Setup notes (commands run on the robot):
     define it manually below to keep URDF parsing working.
 """
 
+# TODO: maybe figure out how to tell it that moving some joints is slower than others?
+# TODO: test velocities, maybe honestly remove
+
 import os
 import time
 from contextlib import contextmanager
@@ -534,6 +537,9 @@ class StretchIkRos:
         fixed_joints=None,
     ):
         """Solve IK for a target point, optionally with bounds and fixed joints.
+
+        Lets the wrist move to help, 
+        (solve_pose_ik is the one that enforces a wrist orientation, but that can be done with this too)
 
         Args:
             target_point: [x, y, z] target in base_link frame.
