@@ -9,6 +9,16 @@ from geometry_msgs.msg import TransformStamped
 from rclpy.node import Node
 from tf2_ros import TransformBroadcaster
 from tf_transformations import quaternion_from_matrix
+
+
+_OPTICAL_TO_LINK_ROTATION = np.array(
+    [
+        [0.0, 0.0, 1.0],
+        [-1.0, 0.0, 0.0],
+        [0.0, -1.0, 0.0],
+    ],
+    dtype=np.float64,
+)
 class ArucoTfPublisher:
     """Publish marker poses to TF using a ROS 2 node."""
 
@@ -25,6 +35,8 @@ class ArucoTfPublisher:
 
     def publish(self, rvec: np.ndarray, tvec: np.ndarray, marker_id: int) -> None:
         rotation_matrix, _ = cv2.Rodrigues(rvec)
+        rotation_matrix = _OPTICAL_TO_LINK_ROTATION @ rotation_matrix
+        translated = _OPTICAL_TO_LINK_ROTATION @ tvec.reshape(3)
         transform_matrix = np.eye(4, dtype=np.float64)
         transform_matrix[:3, :3] = rotation_matrix
         quat = quaternion_from_matrix(transform_matrix)
@@ -33,9 +45,9 @@ class ArucoTfPublisher:
         tf_msg.header.stamp = self.node.get_clock().now().to_msg()
         tf_msg.header.frame_id = self.parent_frame
         tf_msg.child_frame_id = f"{self.child_frame_prefix}{marker_id}"
-        tf_msg.transform.translation.x = float(tvec[0])
-        tf_msg.transform.translation.y = float(tvec[1])
-        tf_msg.transform.translation.z = float(tvec[2])
+        tf_msg.transform.translation.x = float(translated[0])
+        tf_msg.transform.translation.y = float(translated[1])
+        tf_msg.transform.translation.z = float(translated[2])
         tf_msg.transform.rotation.x = float(quat[0])
         tf_msg.transform.rotation.y = float(quat[1])
         tf_msg.transform.rotation.z = float(quat[2])
