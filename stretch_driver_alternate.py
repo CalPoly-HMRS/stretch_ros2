@@ -184,16 +184,16 @@ class StretchDriver(Node):
             if has_base_translate and has_base_rotate and self.robot_mode != 'position':
                 self.get_logger().error('Cannot move base in both translation and rotation at the same time in position mode')
             elif has_base_translate and self.robot_mode == 'position':
-                self.get_logger().info(f"Translating base by {base_translate} m")
+                # self.get_logger().info(f"Translating base by {base_translate} m")
                 self.robot.base.translate_by(base_translate)
             elif has_base_rotate and self.robot_mode == 'position':
-                self.get_logger().info(f"Rotating base by {base_rotate} rad")
+                # self.get_logger().info(f"Rotating base by {base_rotate} rad")
                 self.robot.base.rotate_by(base_rotate)
             if 'stretch_gripper' in self.robot.end_of_arm.joints and not np.isnan(qpos[Idx.GRIPPER]):
                 pos = self.gripper_conversion.finger_to_robotis(qpos[Idx.GRIPPER])
                 self.robot.end_of_arm.move_to('stretch_gripper', pos)
             self.get_logger().info(f"ARM: {qpos[Idx.ARM]} LIFT: {qpos[Idx.LIFT]} WRIST_YAW: {qpos[Idx.WRIST_YAW]} WRIST_PITCH: {qpos[Idx.WRIST_PITCH]} WRIST_ROLL: {qpos[Idx.WRIST_ROLL]} HEAD_PAN: {qpos[Idx.HEAD_PAN]} HEAD_TILT: {qpos[Idx.HEAD_TILT]} BASE_TRANSLATE: {qpos[Idx.BASE_TRANSLATE]} BASE_ROTATE: {qpos[Idx.BASE_ROTATE]} GRIPPER: {qpos[Idx.GRIPPER]}")
-            self.get_logger().info(f"Moved to position qpos: {qpos}")
+            # self.get_logger().info(f"Moved to position qpos: {qpos}")
         except Exception as e:
             self.get_logger().error('Failed to move to position: {0}'.format(e))
 
