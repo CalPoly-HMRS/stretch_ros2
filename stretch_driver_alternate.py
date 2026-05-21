@@ -150,6 +150,9 @@ class StretchDriver(Node):
             self.streaming_controller_lt.update()
     
     def move_to_position(self, qpos):
+        
+        # NOTE: Can only do either base translate or base rotate at a time
+
         try:
             try:
                 Idx = get_Idx(self.robot.params['tool'])
@@ -175,17 +178,21 @@ class StretchDriver(Node):
 
             base_translate = qpos[Idx.BASE_TRANSLATE]
             base_rotate = qpos[Idx.BASE_ROTATE]
-            has_base_translate = not np.isnan(base_translate)
-            has_base_rotate = not np.isnan(base_rotate)
-            if has_base_translate and has_base_rotate and abs(base_translate) > 0.0 and abs(base_rotate) > 0.0 and self.robot_mode != 'position':
+            base_deadband = 1e-3
+            has_base_translate = not np.isnan(base_translate) and abs(base_translate) > base_deadband
+            has_base_rotate = not np.isnan(base_rotate) and abs(base_rotate) > base_deadband
+            if has_base_translate and has_base_rotate and self.robot_mode != 'position':
                 self.get_logger().error('Cannot move base in both translation and rotation at the same time in position mode')
-            elif has_base_translate and abs(base_translate) > 0.0 and self.robot_mode == 'position':
+            elif has_base_translate and self.robot_mode == 'position':
+                self.get_logger().info(f"Translating base by {base_translate} m")
                 self.robot.base.translate_by(base_translate)
-            elif has_base_rotate and abs(base_rotate) > 0.0 and self.robot_mode == 'position':
+            elif has_base_rotate and self.robot_mode == 'position':
+                self.get_logger().info(f"Rotating base by {base_rotate} rad")
                 self.robot.base.rotate_by(base_rotate)
             if 'stretch_gripper' in self.robot.end_of_arm.joints and not np.isnan(qpos[Idx.GRIPPER]):
                 pos = self.gripper_conversion.finger_to_robotis(qpos[Idx.GRIPPER])
                 self.robot.end_of_arm.move_to('stretch_gripper', pos)
+            self.get_logger().info(f"ARM: {qpos[Idx.ARM]} LIFT: {qpos[Idx.LIFT]} WRIST_YAW: {qpos[Idx.WRIST_YAW]} WRIST_PITCH: {qpos[Idx.WRIST_PITCH]} WRIST_ROLL: {qpos[Idx.WRIST_ROLL]} HEAD_PAN: {qpos[Idx.HEAD_PAN]} HEAD_TILT: {qpos[Idx.HEAD_TILT]} BASE_TRANSLATE: {qpos[Idx.BASE_TRANSLATE]} BASE_ROTATE: {qpos[Idx.BASE_ROTATE]} GRIPPER: {qpos[Idx.GRIPPER]}")
             self.get_logger().info(f"Moved to position qpos: {qpos}")
         except Exception as e:
             self.get_logger().error('Failed to move to position: {0}'.format(e))
