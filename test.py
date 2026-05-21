@@ -222,18 +222,22 @@ def run_one_by_one_test(hold_s=2.0):
 	try:
 		for name, start_value in start_pose.items():
 			mid_value = middle_pose.get(name, start_value)
+			print(f"Starting {name} movement:")
 
 			node.set_joint_poses([(name, start_value)])
 			rclpy.spin_once(node, timeout_sec=0.1)
 			time.sleep(hold_s)
+			print(f"    Moved to {name} start position")
 
 			node.set_joint_poses([(name, mid_value)])
 			rclpy.spin_once(node, timeout_sec=0.1)
 			time.sleep(hold_s)
+			print(f"    Moved to {name} middle position")
 
 			node.set_joint_poses([(name, start_value)])
 			rclpy.spin_once(node, timeout_sec=0.1)
 			time.sleep(hold_s)
+			print(f"    Moved back to {name} start position")
 			
 	finally:
 		rclpy.shutdown()
