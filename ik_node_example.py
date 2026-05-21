@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import time
+
 import numpy as np
 import rclpy
 from geometry_msgs.msg import Point
@@ -16,6 +18,10 @@ class IkExampleNode(HelloNode):
         self.main("ik_example_node", "ik_example_node", wait_for_first_pointcloud=False)
         self.ik = StretchIkRos(self, tool_name="tool_stretch_dex_wrist")
         self.target_marker_pub = self.create_publisher(Marker, "ik_target_marker", 10)
+        self.target_frame = "base_link"  # base_link, odom, or odom_zeroed
+        self.zero_odom_on_start = False
+        if self.zero_odom_on_start:
+            self.ik.set_odom_zero()
 
     def _publish_line_marker(self, start_point, end_point, frame_id="base_link"):
         marker = Marker()
@@ -78,8 +84,9 @@ class IkExampleNode(HelloNode):
 
         # just viz stuff
         current_point = self.ik.chain.forward_kinematics(q_init)[:3, 3]
-        self._publish_target_marker(target_point)
-        self._publish_line_marker(current_point, target_point)
+        target_point_relative = self.ik.resolve_target_point(target_point, self.target_frame)
+        self._publish_target_marker(target_point_relative)
+        self._publish_line_marker(current_point, target_point_relative)
         rclpy.spin_once(self, timeout_sec=0.1) # ensures it gets published
 
         # lets the user decide whether to move or not
@@ -93,6 +100,7 @@ class IkExampleNode(HelloNode):
                 target_point,
                 q_init=q_init,
                 fixed_joints=["base_rotate", "base_translate"],
+                target_frame=self.target_frame,
             )
         else:
             target_pose = self.ik.make_target_pose(target_point, target_rpy)
@@ -100,9 +108,10 @@ class IkExampleNode(HelloNode):
                 target_pose,
                 q_init=q_init,
                 fixed_joints=["base_rotate", "base_translate"],
+                target_frame=self.target_frame,
             )
-        error = self.ik.compute_position_error(q_soln, target_point)
-        self.get_logger().info(f"IK error: {error:.4f} m")
+        error = self.ik.compute_position_error(q_soln, target_point_relative)
+        self.get_logger().info(f"IK error (ideal error after movement): {error:.4f} m")
 
         if error < 0.5:
             self.ik.move_to_configuration(q_soln, tool_name="tool_stretch_dex_wrist")
