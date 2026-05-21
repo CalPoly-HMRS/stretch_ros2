@@ -230,14 +230,7 @@ class HelloNode(Node):
         # self.get_logger().info('Publishing: "%s"' % msg.data)
 
     def set_joint_poses(self, joint_poses: list[tuple[str, int]]):
-        requested = {}
-        invalid_names = []
-        for name, value in joint_poses:
-            if name not in self.all_joint_names:
-                invalid_names.append(name)
-            else:
-                requested[name] = value
-
+        invalid_names = [name for name, _ in joint_poses if name not in self.all_joint_names]
         if invalid_names:
             self.get_logger().error(
                 "Invalid joint name(s): {}. Valid joint names are: {}".format(
@@ -246,46 +239,28 @@ class HelloNode(Node):
             )
             return
 
-        def get_joint_position(joint_name, default=0.0):
-            try:
-                i = self.joint_state.name.index(joint_name)
-                return self.joint_state.position[i]
-            except ValueError:
-                self.get_logger().warn("Joint name {} not found in current joint state. Using default value {} for this joint.".format(joint_name, default))
-                return default
-
-        arm_extension = (
-            get_joint_position('joint_arm_l0')
-            + get_joint_position('joint_arm_l1')
-            + get_joint_position('joint_arm_l2')
-            + get_joint_position('joint_arm_l3')
-        )
-        gripper_position = get_joint_position('joint_gripper_finger_left')
-
-        pose = {}
-        for name in self.all_joint_names:
-            if name in requested:
-                pose[name] = requested[name]
+        qpos = np.full(self.Idx.num_joints, np.nan)
+        for name, value in joint_poses:
+            if name == 'lift':
+                qpos[self.Idx.LIFT] = value
             elif name == 'arm':
-                pose[name] = arm_extension
+                qpos[self.Idx.ARM] = value
+            elif name == 'wrist_pitch':
+                qpos[self.Idx.WRIST_PITCH] = value
+            elif name == 'wrist_roll':
+                qpos[self.Idx.WRIST_ROLL] = value
+            elif name == 'wrist_yaw':
+                qpos[self.Idx.WRIST_YAW] = value
             elif name == 'stretch_gripper':
-                pose[name] = gripper_position
-            elif name in ['base_translate', 'base_rotate']:
-                pose[name] = 0.0
-            else:
-                pose[name] = get_joint_position('joint_' + name)
-
-        qpos = np.zeros(self.Idx.num_joints)
-        qpos[self.Idx.LIFT] = pose['lift']
-        qpos[self.Idx.ARM] = pose['arm']
-        qpos[self.Idx.WRIST_PITCH] = pose['wrist_pitch']
-        qpos[self.Idx.WRIST_ROLL] = pose['wrist_roll']
-        qpos[self.Idx.WRIST_YAW] = pose['wrist_yaw']
-        qpos[self.Idx.GRIPPER] = pose['stretch_gripper']
-        qpos[self.Idx.BASE_TRANSLATE] = pose['base_translate']
-        qpos[self.Idx.BASE_ROTATE] = pose['base_rotate']
-        qpos[self.Idx.HEAD_PAN] = pose['head_pan']
-        qpos[self.Idx.HEAD_TILT] = pose['head_tilt']
+                qpos[self.Idx.GRIPPER] = value
+            elif name == 'base_translate':
+                qpos[self.Idx.BASE_TRANSLATE] = value
+            elif name == 'base_rotate':
+                qpos[self.Idx.BASE_ROTATE] = value
+            elif name == 'head_pan':
+                qpos[self.Idx.HEAD_PAN] = value
+            elif name == 'head_tilt':
+                qpos[self.Idx.HEAD_TILT] = value
         
         self.publish_joint_pose(qpos)
 
