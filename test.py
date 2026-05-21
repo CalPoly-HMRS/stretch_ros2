@@ -209,7 +209,7 @@ def run_one_by_one_test(hold_s=2.0):
 	middle_pose = {
 		"lift": 0.4,
 		"arm": 0.3,
-		"wrist_pitch": 0.0,
+		"wrist_pitch": -pi / 4,
 		"wrist_roll": -pi / 4,
 		"wrist_yaw": pi / 2,
 		"stretch_gripper": 0.4,
@@ -226,19 +226,20 @@ def run_one_by_one_test(hold_s=2.0):
 
 			node.set_joint_poses([(name, start_value)])
 			rclpy.spin_once(node, timeout_sec=0.1)
+			print(f"    Moved/moving to {name} start position")
 			time.sleep(hold_s)
-			print(f"    Moved to {name} start position")
 
 			node.set_joint_poses([(name, mid_value)])
 			rclpy.spin_once(node, timeout_sec=0.1)
+			print(f"    Moved/moving to {name} middle position")
 			time.sleep(hold_s)
-			print(f"    Moved to {name} middle position")
 
 			node.set_joint_poses([(name, start_value)])
 			rclpy.spin_once(node, timeout_sec=0.1)
+			print(f"    Moved/moving back to {name} start position")
 			time.sleep(hold_s)
-			print(f"    Moved back to {name} start position")
-			
+			print(f"    Completed {name} movement")
+
 	finally:
 		rclpy.shutdown()
 
