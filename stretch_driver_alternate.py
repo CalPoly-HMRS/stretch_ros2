@@ -158,22 +158,32 @@ class StretchDriver(Node):
             if len(qpos) != Idx.num_joints:
                 self.get_logger().error('Received qpos does not match the number of joints in the robot')
                 return
-            self.robot.arm.move_to(qpos[Idx.ARM])
-            self.robot.lift.move_to(qpos[Idx.LIFT])
-            self.robot.end_of_arm.move_to('wrist_yaw', qpos[Idx.WRIST_YAW])
-            if 'wrist_pitch' in self.robot.end_of_arm.joints:
+            if not np.isnan(qpos[Idx.ARM]):
+                self.robot.arm.move_to(qpos[Idx.ARM])
+            if not np.isnan(qpos[Idx.LIFT]):
+                self.robot.lift.move_to(qpos[Idx.LIFT])
+            if not np.isnan(qpos[Idx.WRIST_YAW]):
+                self.robot.end_of_arm.move_to('wrist_yaw', qpos[Idx.WRIST_YAW])
+            if 'wrist_pitch' in self.robot.end_of_arm.joints and not np.isnan(qpos[Idx.WRIST_PITCH]):
                 self.robot.end_of_arm.move_to('wrist_pitch', qpos[Idx.WRIST_PITCH])
-            if 'wrist_roll' in self.robot.end_of_arm.joints:
+            if 'wrist_roll' in self.robot.end_of_arm.joints and not np.isnan(qpos[Idx.WRIST_ROLL]):
                 self.robot.end_of_arm.move_to('wrist_roll', qpos[Idx.WRIST_ROLL])
-            self.robot.head.move_to('head_pan', qpos[Idx.HEAD_PAN])
-            self.robot.head.move_to('head_tilt', qpos[Idx.HEAD_TILT])
-            if abs(qpos[Idx.BASE_TRANSLATE]) > 0.0 and abs(qpos[Idx.BASE_ROTATE]) > 0.0 and self.robot_mode != 'position':
+            if not np.isnan(qpos[Idx.HEAD_PAN]):
+                self.robot.head.move_to('head_pan', qpos[Idx.HEAD_PAN])
+            if not np.isnan(qpos[Idx.HEAD_TILT]):
+                self.robot.head.move_to('head_tilt', qpos[Idx.HEAD_TILT])
+
+            base_translate = qpos[Idx.BASE_TRANSLATE]
+            base_rotate = qpos[Idx.BASE_ROTATE]
+            has_base_translate = not np.isnan(base_translate)
+            has_base_rotate = not np.isnan(base_rotate)
+            if has_base_translate and has_base_rotate and abs(base_translate) > 0.0 and abs(base_rotate) > 0.0 and self.robot_mode != 'position':
                 self.get_logger().error('Cannot move base in both translation and rotation at the same time in position mode')
-            elif abs(qpos[Idx.BASE_TRANSLATE]) > 0.0 and self.robot_mode == 'position':
-                self.robot.base.translate_by(qpos[Idx.BASE_TRANSLATE])
-            elif abs(qpos[Idx.BASE_ROTATE]) > 0.0 and self.robot_mode == 'position':
-                self.robot.base.rotate_by(qpos[Idx.BASE_ROTATE])
-            if 'stretch_gripper' in self.robot.end_of_arm.joints:
+            elif has_base_translate and abs(base_translate) > 0.0 and self.robot_mode == 'position':
+                self.robot.base.translate_by(base_translate)
+            elif has_base_rotate and abs(base_rotate) > 0.0 and self.robot_mode == 'position':
+                self.robot.base.rotate_by(base_rotate)
+            if 'stretch_gripper' in self.robot.end_of_arm.joints and not np.isnan(qpos[Idx.GRIPPER]):
                 pos = self.gripper_conversion.finger_to_robotis(qpos[Idx.GRIPPER])
                 self.robot.end_of_arm.move_to('stretch_gripper', pos)
             self.get_logger().info(f"Moved to position qpos: {qpos}")
