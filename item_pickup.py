@@ -3,8 +3,7 @@ import time
 import cv2
 
 from math import atan2, pi
-from geometry_msgs.msg import Twist
-import hello_helpers.hello_misc as hm
+import hello_misc as hm
 import numpy as np
 import pyrealsense2 as rs
 
@@ -23,34 +22,37 @@ class ItemPickup(hm.HelloNode):
             "item_pickup", 
             wait_for_first_pointcloud=False,
         )
-        #
-        
-        # for robot movement
-        self.cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel", 10)
-
         self.get_logger().info("Robot node started")
-	#move forward movement works YAY :D // new code 
-    def stop_base(self):
-        msg = Twist()
-        self.cmd_vel_pub.publish(msg)
+
+    def wait_for_joint_state(self, timeout_s=5.0):
+        start = time.time()
+        while time.time() - start < timeout_s:
+            rclpy.spin_once(self, timeout_sec=0.1)
+            if self.joint_state and self.joint_state.name:
+                return True
+        return False
+
+    def get_joint_position(self, joint_name, default=0.0):
+        if not self.joint_state or not self.joint_state.name:
+            return default
+        if joint_name not in self.joint_state.name:
+            return default
+        index = self.joint_state.name.index(joint_name)
+        return self.joint_state.position[index]
 
 
     def move_forward3ft(self):
-        self.get_logger().info("Moving forward 3ft")
-        distance_m = 0.9144
-        speed_mps = 0.10
-        move_time_s = distance_m / speed_mps
+        self.get_logger().info("Moving forward 0.5m")
+        distance_m = 0.5
 
-        msg = Twist()
-        msg.linear.x = speed_mps
-        start_time = time.time()
-        while time.time() - start_time < move_time_s:
-            self.cmd_vel_pub.publish(msg)
-            rclpy.spin_once(self, timeout_sec=0.01)
-            time.sleep(0.05)
-        
-        #self.move_to_pose({"translate_mobile_base": 0.9144}, blocking=True)
-        self.stop_base()
+        if not self.wait_for_joint_state():
+            self.get_logger().error("Timed out waiting for joint states. Skipping base movement.")
+            return
+
+        start_base = self.get_joint_position("base_translate", default=0.0)
+        target_base = start_base + distance_m
+        self.set_joint_poses([("base_translate", target_base)])
+        rclpy.spin_once(self, timeout_sec=0.1)
         time.sleep(1.0)
     
     #camera looking right works
@@ -58,10 +60,11 @@ class ItemPickup(hm.HelloNode):
         self.get_logger().info("Looking right toward the object")
 
         #have head looking down right now at about -45degrees
-        self.move_to_pose({"joint_head_pan": -pi/2, 
-                           "joint_head_tilt": -pi/4}, 
-                           blocking=True
-                          )
+        self.set_joint_poses([
+            ("head_pan", -pi / 2),
+            ("head_tilt", -pi / 4),
+        ])
+        rclpy.spin_once(self, timeout_sec=0.1)
         
     #setting up camera detection
     def setup_camera(self):
@@ -211,8 +214,8 @@ class ItemPickup(hm.HelloNode):
         self.get_logger().info("Starting right side pickup motion")
 
         #open the gripper
-        self.move_to_pose({"joint_gripper_finger_left": 0.3},
-                          blocking=False)
+        self.set_joint_poses([("stretch_gripper", 0.3)])
+        rclpy.spin_once(self, timeout_sec=0.1)
         time.sleep(0.5)
         self.get_logger().info("Done with gripper, starting arm movement")
         
@@ -223,12 +226,16 @@ class ItemPickup(hm.HelloNode):
                          #  blocking=True)
         self.get_logger().info("starting arm motion")
         #joint_lift moves arm up and down
-        self.move_to_pose({"joint_lift": 0.55}, blocking=False)
+        self.set_joint_poses([("lift", 0.55)])
+        rclpy.spin_once(self, timeout_sec=0.1)
 
         #Tilt wrist downward
         self.get_logger().info("Tilting wrist down")
-        self.move_to_pose({"joint_wrist_pitch": -pi/4, "joint_wrist_roll": 0.0}, 
-                          blocking=False)
+        self.set_joint_poses([
+            ("wrist_pitch", -pi / 4),
+            ("wrist_roll", 0.0),
+        ])
+        rclpy.spin_once(self, timeout_sec=0.1)
         
 
 
@@ -237,16 +244,19 @@ class ItemPickup(hm.HelloNode):
         
         #reach outward toward object
         #currently at .3
-        self.move_to_pose({"joint_arm": 0.3}, blocking=False)
+        self.set_joint_poses([("arm", 0.3)])
+        rclpy.spin_once(self, timeout_sec=0.1)
         #wait
         time.sleep(0.5)
         #closing gripper
-        self.move_to_pose({"joint_gripper_finger_left": 0.0}, blocking=False)
+        self.set_joint_poses([("stretch_gripper", 0.0)])
+        rclpy.spin_once(self, timeout_sec=0.1)
         time.sleep(0.5)
 
         #lift object a bit
         self.get_logger().info("Moving arm up ")
-        self.move_to_pose({"joint_lift": 0.70}, blocking=False)
+        self.set_joint_poses([("lift", 0.70)])
+        rclpy.spin_once(self, timeout_sec=0.1)
 
         #restract arm
         #self.move_to_pose({"joint_arm": 0.2}, blocking=False)
