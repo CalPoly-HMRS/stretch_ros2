@@ -11,6 +11,15 @@ Setup notes (commands run on the robot):
 # TODO: maybe figure out how to tell it that moving some joints is slower than others?
 # TODO: test velocities, maybe honestly remove
 
+# Notes on target frames and odom zeroing:
+# - Use `set_odom_zero()` once to capture the current odom pose as an origin.
+# - Pass `target_frame` to `solve_point_ik()` / `solve_pose_ik()`:
+#   * "base_link": target is already in base_link.
+#   * "odom": target is in odom and will be transformed to base_link.
+#   * "odom_zeroed": target is in a zeroed odom frame (after set_odom_zero()).
+# - For visualization, call `resolve_target_point()` to convert into base_link.
+
+import math
 import os
 import time
 from contextlib import contextmanager
@@ -20,6 +29,7 @@ import ikpy.chain
 import ikpy.utils.geometry
 import numpy as np
 import stretch_body.hello_utils as hu
+from hello_misc import get_p1_to_p2_matrix
 
 # Compatibility shim for urdfpy on NumPy >= 1.24.
 if not hasattr(np, "float"):
@@ -465,6 +475,69 @@ class StretchIkRos:
             return self._joint_pos("wrist_extension")
         raise ValueError("Arm joint states not available")
 
+    def set_odom_zero(self, floor_frame="odom"):
+        """Store the current base pose so odom-relative targets can be zeroed.
+
+        Args:
+            floor_frame: Frame to treat as odom (default: odom).
+        """
+        pose, _ = self.node.get_robot_floor_pose_xya(floor_frame)
+        if pose is None:
+            raise ValueError("Unable to read odom pose for zeroing")
+        self._odom_zero = tuple(pose)
+
+    def _odom_zero_to_odom(self, point):
+        if not hasattr(self, "_odom_zero") or self._odom_zero is None:
+            return np.array(point, dtype=float)
+        x0, y0, yaw0 = self._odom_zero
+        x, y, z = point
+        cos_yaw = math.cos(yaw0)
+        sin_yaw = math.sin(yaw0)
+        return np.array(
+            [x0 + cos_yaw * x - sin_yaw * y, y0 + sin_yaw * x + cos_yaw * y, z],
+            dtype=float,
+        )
+
+    def transform_point(self, point, from_frame, to_frame, use_odom_zero=False):
+        """Transform a point between frames using the node's TF buffer.
+
+        Args:
+            point: [x, y, z] point in from_frame.
+            from_frame: Source frame id.
+            to_frame: Target frame id.
+            use_odom_zero: If True and from_frame is odom, use odom zero offset.
+
+        Returns:
+            Point in target frame as a numpy array.
+        """
+        point = np.array(point, dtype=float)
+        if use_odom_zero and from_frame == "odom":
+            point = self._odom_zero_to_odom(point)
+
+        mat, _ = get_p1_to_p2_matrix(from_frame, to_frame, self.node.tf2_buffer)
+        if mat is None:
+            raise ValueError(f"No TF transform from {from_frame} to {to_frame}")
+        point_h = np.array([point[0], point[1], point[2], 1.0], dtype=float)
+        return (mat @ point_h)[:3]
+
+    def resolve_target_point(self, point, target_frame="base_link"):
+        """Return target point expressed in base_link for IK solving.
+
+        Args:
+            point: [x, y, z] target point.
+            target_frame: base_link, odom, or odom_zeroed.
+
+        Returns:
+            Target point in base_link frame as a numpy array.
+        """
+        if target_frame == "base_link":
+            return np.array(point, dtype=float)
+        if target_frame == "odom":
+            return self.transform_point(point, "odom", "base_link")
+        if target_frame == "odom_zeroed":
+            return self.transform_point(point, "odom", "base_link", use_odom_zero=True)
+        raise ValueError(f"Unsupported target_frame: {target_frame}")
+
     def get_current_configuration(self, tool_name=None):
         """Return the IKPy configuration vector for the current robot state.
 
@@ -535,6 +608,7 @@ class StretchIkRos:
         q_init=None,
         joint_bounds=None,
         fixed_joints=None,
+        target_frame="base_link",
     ):
         """Solve IK for a target point, optionally with bounds and fixed joints.
 
@@ -542,15 +616,17 @@ class StretchIkRos:
         (solve_pose_ik is the one that enforces a wrist orientation, but that can be done with this too)
 
         Args:
-            target_point: [x, y, z] target in base_link frame.
+            target_point: [x, y, z] target point.
             q_init: Optional initial configuration. Defaults to current state.
             joint_bounds: Dict of {joint_name: (min, max)} for this solve.
             fixed_joints: Dict of {joint_name: value} to hold fixed.
+            target_frame: base_link, odom, or odom_zeroed.
 
         Returns:
             IKPy solution vector.
         """
         # Solve IK for a 3D point without orientation constraints.
+        target_point = self.resolve_target_point(target_point, target_frame)
         q_init = q_init or self.get_current_configuration()
         if fixed_joints:
             if isinstance(fixed_joints, (list, tuple, set)):
@@ -644,20 +720,27 @@ class StretchIkRos:
         pretarget_pose=None,
         joint_bounds=None,
         fixed_joints=None,
+        target_frame="base_link",
     ):
         """Solve IK for a target pose with optional pretarget and constraints.
 
         Args:
-            target_pose: 4x4 pose matrix in base_link frame.
+            target_pose: 4x4 pose matrix in target_frame.
             q_init: Optional initial configuration. Defaults to current state.
             pretarget_pose: Optional intermediate pose to improve convergence.
             joint_bounds: Dict of {joint_name: (min, max)} for this solve.
             fixed_joints: Dict of {joint_name: value} to hold fixed.
+            target_frame: base_link, odom, or odom_zeroed.
 
         Returns:
             IKPy solution vector.
         """
         # Solve IK for a full pose; optional pretarget helps convergence.
+        target_pose = np.array(target_pose, dtype=float)
+        target_pose[:3, 3] = self.resolve_target_point(
+            target_pose[:3, 3],
+            target_frame,
+        )
         q_init = q_init or self.get_current_configuration()
         if fixed_joints:
             if isinstance(fixed_joints, (list, tuple, set)):
