@@ -8,7 +8,7 @@ from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
 from rclpy.duration import Duration
 
-from hello_misc import HelloNode, get_p1_to_p2_matrix
+from hello_misc import HelloNode, get_p1_to_p2_matrix, get_wrist_state
 from ik_class import StretchIkRos
 
 # Update this list to control which ArUco IDs are considered.
@@ -100,9 +100,12 @@ class IkArucoExampleNode(HelloNode):
     def run_once(self):
         self.set_joint_poses([("head_tilt", -np.pi / 4)])
 
-        answer = input("Open gripper? [y/N]: ").strip().lower()
+        answer = input("Open gripper AND move wrist? [y/N]: ").strip().lower()
         if answer.startswith("y"):
             self.set_joint_poses([("stretch_gripper", GRIPPER_OPEN)])
+            self.set_joint_poses([("wrist_pitch", -0.8)])
+            self.set_joint_poses([("wrist_roll", 0.0)])
+            time.sleep(0.5)
 
         marker_id, target_point = self._find_first_aruco_target()
         if target_point is None:
@@ -115,18 +118,44 @@ class IkArucoExampleNode(HelloNode):
         self._publish_line_marker(current_point, target_point)
         rclpy.spin_once(self, timeout_sec=0.1)
 
+        # print target point
+        print(f"Target point: {target_point}")
+
+        # add a little z offset to avoid colliding with the table
+        ######## NOTE: This is way too huge, this is because current ArUCo detection is like very bad
+        # I will be adding depth to the aruco detection over the weekend so we dont need horribly huge manual offsets
+        # this will not work (will be too high) with the actual accurate aruco pose
+        target_point[2] += 0.2
+
+        # print target point again
+        print(f"Target point with z offset: {target_point}")
+
+        # print current wrist pitch
+        current_wrist_pitch = self.ik._get_q_value(q_init, "joint_wrist_pitch")
+        print(f"Current wrist pitch (q_init): {current_wrist_pitch:.3f}")
+
+        current_wrist_pitch = self.ik._joint_pos("joint_wrist_pitch")
+        print(f"Current wrist pitch: {current_wrist_pitch:.3f}")
+
+        answer = input(f"Calculate ik for aruco_tag_{marker_id}? [y/N]: ").strip().lower()
+        if not answer.startswith("y"):
+            self.get_logger().info("Exiting.")
+            return
+
+        # set bounds for the wrist pitch to approach from the top and solve ik
+        q_soln = self.ik.solve_point_ik(
+            target_point,
+            q_init=q_init,
+            joint_bounds={"wrist_pitch": (-1.2, -0.5)},
+            fixed_joints=["base_translate", "wrist_roll"],
+        )
+        error = self.ik.compute_position_error(q_soln, target_point)
+        self.get_logger().info(f"IK error: {error:.4f} m")
+
         answer = input(f"Move to aruco_tag_{marker_id}? [y/N]: ").strip().lower()
         if not answer.startswith("y"):
             self.get_logger().info("Skipping move.")
             return
-
-        q_soln = self.ik.solve_point_ik(
-            target_point,
-            q_init=q_init,
-            fixed_joints=["base_rotate", "base_translate"],
-        )
-        error = self.ik.compute_position_error(q_soln, target_point)
-        self.get_logger().info(f"IK error: {error:.4f} m")
 
         if error < 0.5:
             self.ik.move_to_configuration(q_soln, tool_name="tool_stretch_dex_wrist")

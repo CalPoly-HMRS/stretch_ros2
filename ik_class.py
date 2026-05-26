@@ -615,6 +615,8 @@ class StretchIkRos:
         Lets the wrist move to help, 
         (solve_pose_ik is the one that enforces a wrist orientation, but that can be done with this too)
 
+        NOTE: for joint_bounds to work, the joint needs to already be within that range before this is called
+
         Args:
             target_point: [x, y, z] target point.
             q_init: Optional initial configuration. Defaults to current state.
