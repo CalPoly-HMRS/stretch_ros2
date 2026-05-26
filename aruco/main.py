@@ -9,7 +9,7 @@ import numpy as np
 import rclpy
 
 from aruco__tf_publisher import ArucoTfPublisher
-from aruco_detector import ArucoDetector, estimate_single_marker_pose
+from aruco_detector import ArucoDetector, estimate_single_marker_pose, refine_pose_with_depth
 from camera import CameraManager
 import config
 from visualization import Visualizer
@@ -19,6 +19,12 @@ def _pick_profile_index(device_index: int) -> int:
 	if device_index == 0:
 		return config.CAMERA_PROFILE_HEAD_INDEX
 	return config.CAMERA_PROFILE_WRIST_INDEX
+
+
+def _pick_depth_profile_index(device_index: int) -> int:
+	if device_index == 0:
+		return config.DEPTH_PROFILE_HEAD_INDEX
+	return config.DEPTH_PROFILE_WRIST_INDEX
 
 
 def _prompt_for_device_index(default_index: int) -> int:
@@ -89,10 +95,15 @@ def main() -> None:
 	is_head_camera = device_index == 0
 	parent_frame = "camera_link" if is_head_camera else "gripper_camera_link"
 	tf_publisher = ArucoTfPublisher(node, parent_frame=parent_frame)
+	depth_mode = config.DEPTH_POSE_MODE.lower()
+	enable_depth = depth_mode != "off"
 
 	camera = CameraManager(
 		device_index=device_index,
 		profile_index=_pick_profile_index(device_index),
+		depth_profile_index=_pick_depth_profile_index(device_index),
+		enable_depth=enable_depth,
+		align_depth_to_color=config.ALIGN_DEPTH_TO_COLOR,
 	)
 	if not camera.initialize():
 		node.destroy_node()
@@ -120,7 +131,7 @@ def main() -> None:
 
 	try:
 		while True:
-			frame = camera.get_frame(timeout_ms=config.CAMERA_TIMEOUT_MS)
+			frame, depth_frame = camera.get_frames(timeout_ms=config.CAMERA_TIMEOUT_MS)
 			now = time.time()
 
 			if frame is None:
@@ -154,6 +165,18 @@ def main() -> None:
 					camera_matrix,
 					dist_coeffs,
 				)
+				if rvec is not None and tvec is not None and enable_depth:
+					rvec, tvec, _ = refine_pose_with_depth(
+						selected_corners,
+						rvec,
+						tvec,
+						camera_matrix,
+						depth_frame,
+						depth_mode,
+						config.DEPTH_MIN_METERS,
+						config.DEPTH_MAX_METERS,
+						config.DEPTH_MIN_POINTS,
+					)
 
 			marker_count = 0 if ids is None else len(ids)
 			status = "TRACKING" if marker_count > 0 else "SEARCHING"

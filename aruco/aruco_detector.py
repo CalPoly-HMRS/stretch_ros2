@@ -8,6 +8,8 @@ import cv2
 import numpy as np
 import pyrealsense2 as rs
 
+import hello_helpers.fit_plane as fp
+
 
 def get_intrinsics_matrix_and_dist(
     color_profile: rs.video_stream_profile,
@@ -100,6 +102,199 @@ def estimate_single_marker_pose(
         return None, None
 
     return rvec.reshape(3), tvec.reshape(3)
+
+
+def _normalize_vector(vec: np.ndarray) -> np.ndarray | None:
+    norm = float(np.linalg.norm(vec))
+    if norm == 0.0:
+        return None
+    return vec / norm
+
+
+def _compute_depth_points_in_polygon(
+    depth_image_m: np.ndarray,
+    corners: np.ndarray,
+    camera_matrix: np.ndarray,
+    min_depth_m: float,
+    max_depth_m: float,
+) -> tuple[np.ndarray, float | None]:
+    height, width = depth_image_m.shape[:2]
+    poly = np.round(corners.reshape(-1, 2)).astype(np.int32)
+
+    x_min = max(0, int(np.min(poly[:, 0])))
+    x_max = min(width - 1, int(np.max(poly[:, 0])))
+    y_min = max(0, int(np.min(poly[:, 1])))
+    y_max = min(height - 1, int(np.max(poly[:, 1])))
+
+    if x_max <= x_min or y_max <= y_min:
+        return np.empty((0, 3), dtype=np.float64), None
+
+    depth_crop = depth_image_m[y_min : y_max + 1, x_min : x_max + 1]
+    if depth_crop.size == 0:
+        return np.empty((0, 3), dtype=np.float64), None
+
+    mask = np.zeros(depth_crop.shape, dtype=np.uint8)
+    poly_shift = poly - [x_min, y_min]
+    cv2.fillConvexPoly(mask, poly_shift, 255)
+
+    coords = np.mgrid[y_min : y_max + 1, x_min : x_max + 1]
+    ys = coords[0]
+    xs = coords[1]
+
+    z = depth_crop
+    valid = (
+        (mask > 0)
+        & np.isfinite(z)
+        & (z > min_depth_m)
+        & (z < max_depth_m)
+    )
+
+    if not np.any(valid):
+        return np.empty((0, 3), dtype=np.float64), None
+
+    fx = float(camera_matrix[0, 0])
+    fy = float(camera_matrix[1, 1])
+    cx = float(camera_matrix[0, 2])
+    cy = float(camera_matrix[1, 2])
+
+    x = ((xs - cx) / fx) * z
+    y = ((ys - cy) / fy) * z
+
+    points = np.stack([x, y, z], axis=-1)[valid]
+    median_depth = float(np.median(z[valid]))
+    return points.astype(np.float64), median_depth
+
+
+def _fit_plane_pose_from_depth(
+    depth_points: np.ndarray,
+    corners: np.ndarray,
+    camera_matrix: np.ndarray,
+    rvec_fallback: np.ndarray,
+) -> tuple[np.ndarray | None, np.ndarray | None]:
+    plane = fp.FitPlane()
+    plane.fit_svd(depth_points, verbose=False)
+    if plane.n is None or plane.d is None:
+        return None, None
+
+    n = np.reshape(plane.n, (3, 1))
+    d = float(plane.d)
+
+    fx = float(camera_matrix[0, 0])
+    fy = float(camera_matrix[1, 1])
+    cx = float(camera_matrix[0, 2])
+    cy = float(camera_matrix[1, 2])
+
+    def pix_to_plane(pix_x: float, pix_y: float) -> np.ndarray | None:
+        ray = np.array([(pix_x - cx) / fx, (pix_y - cy) / fy, 1.0], dtype=np.float64)
+        ray_norm = _normalize_vector(ray)
+        if ray_norm is None:
+            return None
+        denom = float(n.T @ ray_norm.reshape(3, 1))
+        if abs(denom) < 1e-6:
+            return None
+        return (d / denom) * ray_norm
+
+    corner_points = []
+    for (pix_x, pix_y) in corners.reshape(4, 2):
+        point = pix_to_plane(float(pix_x), float(pix_y))
+        if point is None:
+            return None, None
+        corner_points.append(point)
+
+    marker_position = np.mean(corner_points, axis=0)
+
+    top_left, top_right, bottom_right, bottom_left = corner_points
+    y_axis = (top_left + top_right) - (bottom_left + bottom_right)
+    x_axis = (top_right + bottom_right) - (top_left + bottom_left)
+
+    y_axis = _normalize_vector(y_axis)
+    x_axis = _normalize_vector(x_axis)
+
+    rotation_matrix, _ = cv2.Rodrigues(rvec_fallback)
+    old_x_axis = x_axis if x_axis is not None else rotation_matrix[:, 0]
+    old_y_axis = y_axis if y_axis is not None else rotation_matrix[:, 1]
+
+    new_z_axis = _normalize_vector(plane.get_plane_normal().reshape(3))
+    if new_z_axis is None:
+        return None, None
+
+    if x_axis is not None and y_axis is None:
+        new_x_axis = _normalize_vector(old_x_axis - (new_z_axis * np.dot(new_z_axis, old_x_axis)))
+        if new_x_axis is None:
+            return None, None
+        new_y_axis = np.cross(new_z_axis, new_x_axis)
+    elif x_axis is None and y_axis is not None:
+        new_y_axis = _normalize_vector(old_y_axis - (new_z_axis * np.dot(new_z_axis, old_y_axis)))
+        if new_y_axis is None:
+            return None, None
+        new_x_axis = np.cross(new_y_axis, new_z_axis)
+    else:
+        new_y_axis_1 = _normalize_vector(old_y_axis - (new_z_axis * np.dot(new_z_axis, old_y_axis)))
+        new_x_axis_2 = _normalize_vector(old_x_axis - (new_z_axis * np.dot(new_z_axis, old_x_axis)))
+        if new_y_axis_1 is None or new_x_axis_2 is None:
+            return None, None
+        new_x_axis_1 = np.cross(new_y_axis_1, new_z_axis)
+        new_x_axis = _normalize_vector((new_x_axis_1 + new_x_axis_2) * 0.5)
+        if new_x_axis is None:
+            return None, None
+        new_y_axis = np.cross(new_z_axis, new_x_axis)
+
+    new_x_axis = _normalize_vector(new_x_axis)
+    new_y_axis = _normalize_vector(new_y_axis)
+    if new_x_axis is None or new_y_axis is None:
+        return None, None
+
+    rotation = np.column_stack([new_x_axis, new_y_axis, new_z_axis])
+    refined_rvec, _ = cv2.Rodrigues(rotation)
+    return refined_rvec.reshape(3), marker_position.reshape(3)
+
+
+def refine_pose_with_depth(
+    corners: np.ndarray,
+    rvec: np.ndarray,
+    tvec: np.ndarray,
+    camera_matrix: np.ndarray,
+    depth_image_m: np.ndarray | None,
+    mode: str,
+    min_depth_m: float,
+    max_depth_m: float,
+    min_points: int,
+) -> tuple[np.ndarray, np.ndarray, bool]:
+    if depth_image_m is None or mode == "off":
+        return rvec, tvec, False
+
+    points, median_depth = _compute_depth_points_in_polygon(
+        depth_image_m,
+        corners,
+        camera_matrix,
+        min_depth_m,
+        max_depth_m,
+    )
+
+    if points.shape[0] < min_points or median_depth is None:
+        return rvec, tvec, False
+
+    if mode == "simple":
+        # Scale the translation vector so that its z component matches the median depth.
+        if tvec is None or tvec[2] <= 0.0:
+            return rvec, tvec, False
+        scale = median_depth / float(tvec[2])
+        return rvec, (tvec * scale).reshape(3), True
+
+    if mode == "plane":
+        # Fit a plane to the depth points and re-estimate the pose based on that plane.
+        # this is how the stretch one does it
+        refined_rvec, refined_tvec = _fit_plane_pose_from_depth(
+            points,
+            corners,
+            camera_matrix,
+            rvec,
+        )
+        if refined_rvec is None or refined_tvec is None:
+            return rvec, tvec, False
+        return refined_rvec, refined_tvec, True
+
+    return rvec, tvec, False
 
 
 def compute_selected_marker_angle(
