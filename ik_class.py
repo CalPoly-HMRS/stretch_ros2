@@ -827,7 +827,7 @@ class StretchIkRos:
             else 0.0
         )
         q_base_rotation = (
-            self._get_q_value(q_soln, "joint_base_rotation")
+            self._get_q_value(q_soln, "joint_base_rotation") * 1.05 # to factor for it not actually reaching goal
             if self._has_link("joint_base_rotation")
             else 0.0
         )

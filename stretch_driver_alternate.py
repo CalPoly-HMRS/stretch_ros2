@@ -1113,7 +1113,7 @@ class StretchDriver(Node):
         
         self.create_subscription(Joy, "gamepad_joy", self.set_gamepad_motion_callback, 1, callback_group=self.main_group)
 
-        self.create_subscription(Float64MultiArray, "joint_pose_cmd", self.set_robot_streaming_position_callback, 1, callback_group=self.main_group)
+        self.create_subscription(Float64MultiArray, "joint_pose_cmd", self.set_robot_streaming_position_callback, 5, callback_group=self.main_group)
 
         self.create_subscription(Float64MultiArray, "joint_velocity_cmd", self.set_robot_streaming_velocity_callback, 1, callback_group=self.main_group)
 

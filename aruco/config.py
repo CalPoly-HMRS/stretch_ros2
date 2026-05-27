@@ -13,10 +13,10 @@ MARKER_SIZE_M: float = 0.05
 
 # RealSense camera configuration
 # Device index: 0 for head camera, 1 for wrist camera
-DEVICE_INDEX: int = 1
+DEVICE_INDEX: int = 0
 
 # Prompt for camera selection at startup.
-PROMPT_FOR_CAMERA_SELECTION: bool = False
+PROMPT_FOR_CAMERA_SELECTION: bool = True
 
 # Camera profile selection
 # Format: (width, height, fps, format)
@@ -28,7 +28,7 @@ PROMPT_FOR_CAMERA_SELECTION: bool = False
 # Head camera examples
 #   150 -> 960x540 @ 60 fps | bgr8
 #   186 -> 1920x1080 @ 30 fps | bgr8
-CAMERA_PROFILE_HEAD_INDEX: int = 150
+CAMERA_PROFILE_HEAD_INDEX: int = 186
 CAMERA_PROFILE_WRIST_INDEX: int = 18
 
 # Depth profile selection (same indexing scheme as color profiles)
@@ -41,7 +41,7 @@ DEPTH_PROFILE_WRIST_INDEX: int = -1
 # - "off": RGB-only pose from solvePnP
 # - "simple": scale translation with median depth inside marker polygon
 # - "plane": fit a plane to depth points and re-estimate pose on that plane
-DEPTH_POSE_MODE: str = "simple"
+DEPTH_POSE_MODE: str = "plane"
 
 # Depth processing settings (meters)
 # Currently based on optimal performance of the Intel Realsense D435i

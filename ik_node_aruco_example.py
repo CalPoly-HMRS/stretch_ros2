@@ -15,7 +15,7 @@ from ik_class import StretchIkRos
 TARGET_ARUCO_IDS = [0, 2]
 
 GRIPPER_OPEN = 0.6
-GRIPPER_CLOSED = 0.2
+GRIPPER_CLOSED = 0.1
 
 
 class IkArucoExampleNode(HelloNode):
@@ -125,7 +125,7 @@ class IkArucoExampleNode(HelloNode):
         ######## NOTE: This is way too huge, this is because current ArUCo detection is like very bad
         # I will be adding depth to the aruco detection over the weekend so we dont need horribly huge manual offsets
         # this will not work (will be too high) with the actual accurate aruco pose
-        target_point[2] += 0.2
+        target_point[2] += 0.1
 
         # print target point again
         print(f"Target point with z offset: {target_point}")
@@ -152,6 +152,14 @@ class IkArucoExampleNode(HelloNode):
         error = self.ik.compute_position_error(q_soln, target_point)
         self.get_logger().info(f"IK error: {error:.4f} m")
 
+        answer = input(f"Pre-move lift to {self.ik._get_q_value(q_soln, 'joint_lift')} ? [y/N]: ").strip().lower()
+        if not answer.startswith("y"):
+            self.get_logger().info("Skipping move.")
+            return
+        
+        # pre move lift to avoid hitting table
+        self.set_joint_poses([("lift", self.ik._get_q_value(q_soln, "joint_lift"))])
+
         answer = input(f"Move to aruco_tag_{marker_id}? [y/N]: ").strip().lower()
         if not answer.startswith("y"):
             self.get_logger().info("Skipping move.")
@@ -160,9 +168,17 @@ class IkArucoExampleNode(HelloNode):
         if error < 0.5:
             self.ik.move_to_configuration(q_soln, tool_name="tool_stretch_dex_wrist")
 
+            answer = input("Move lift down a bit? [y/N]: ").strip().lower()
+            if answer.startswith("y"):
+                self.set_joint_poses([("lift", self.ik._get_q_value(q_soln, 'joint_lift') - 0.1)])
+
             answer = input("Close gripper? [y/N]: ").strip().lower()
             if answer.startswith("y"):
                 self.set_joint_poses([("stretch_gripper", GRIPPER_CLOSED)])
+
+            answer = input("Move lift down a bit? [y/N]: ").strip().lower()
+            if answer.startswith("y"):
+                self.set_joint_poses([("lift", self.ik._get_q_value(q_soln, 'joint_lift'))])
         else:
             self.get_logger().warn("IK solution outside tolerance")
 

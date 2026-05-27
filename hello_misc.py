@@ -229,7 +229,7 @@ class HelloNode(Node):
         self.joint_velocity_publisher.publish(msg)
         # self.get_logger().info('Publishing: "%s"' % msg.data)
 
-    def set_joint_poses(self, joint_poses: list[tuple[str, int]]):
+    def set_joint_poses(self, joint_poses: list[tuple[str, float]]):
         invalid_names = [name for name, _ in joint_poses if name not in self.all_joint_names]
         if invalid_names:
             self.get_logger().error(
