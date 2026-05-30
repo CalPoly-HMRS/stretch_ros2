@@ -35,7 +35,7 @@ class IkArucoExampleNode(HelloNode):
                 tag_frame,
                 base_frame,
                 self.tf2_buffer,
-                timeout_s=0.05,
+                timeout_s=0.25,
                 verbose=False,
             )
             if tag_to_base is None:
@@ -58,14 +58,16 @@ class IkArucoExampleNode(HelloNode):
                     tag_frame,
                     "base_link",
                     self.tf2_buffer,
-                    timeout_s=0.05,
+                    timeout_s=0.25,
                     verbose=False,
                 )
                 if tag_to_base is None:
                     if time.time() >= timeout_time:
                         self.get_logger().warn(f"Timeout reached while searching for aruco_tag_{target_id}")
                         return None, None
+                    rclpy.spin_once(self, timeout_sec=0.1)
                     time.sleep(0.5)
+                    rclpy.spin_once(self, timeout_sec=0.1)
                     continue
                 target_point = (tag_to_base @ np.array([0.0, 0.0, 0.0, 1.0]))[:3]
                 return target_id, target_point
