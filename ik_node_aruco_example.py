@@ -48,7 +48,7 @@ class IkArucoExampleNode(HelloNode):
 
     def pan_and_search(self, target_id, timeout=None):
         timeout_time = time.time() + timeout if timeout is not None else None
-        head_pan_angles = np.linspace(-np.pi / 4, 3 * np.pi / 4, num=10)
+        head_pan_angles = np.linspace(np.pi / 4, -3 * np.pi / 4, num=10)
         tag_frame = f"aruco_tag_{target_id}"
         while rclpy.ok() and (timeout_time is None or time.time() < timeout_time):
             for head_pan in head_pan_angles:
