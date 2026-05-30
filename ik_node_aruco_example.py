@@ -204,6 +204,10 @@ class IkArucoExampleNode(HelloNode):
 
         if error < 0.5:
             self.ik.move_to_configuration(q_soln, tool_name="tool_stretch_dex_wrist")
+
+            answer = input("Open gripper? [y/N]: ").strip().lower()
+            if answer.startswith("y"):
+                self.set_joint_poses([("stretch_gripper", GRIPPER_OPEN)])
         else:
             self.get_logger().warn("IK solution outside tolerance")
         
