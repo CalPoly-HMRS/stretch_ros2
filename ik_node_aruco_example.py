@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 
+# TODO: use the self.logger for every print...
+
 import time
 
 import numpy as np
 import rclpy
-from geometry_msgs.msg import Point
-from visualization_msgs.msg import Marker
-from rclpy.duration import Duration
 
-from hello_misc import HelloNode, get_p1_to_p2_matrix, get_wrist_state
+from hello_misc import HelloNode, get_p1_to_p2_matrix
 from ik_class import StretchIkRos
 
-# Update this list to control which ArUco IDs are considered.
-TARGET_ARUCO_IDS = [0, 2]
+# First tag is the object to pick up, second tag is the target place to put it
+TARGET_ARUCO_IDS = [0, 1]
 
 GRIPPER_OPEN = 0.6
 GRIPPER_CLOSED = 0.1
@@ -23,69 +22,41 @@ class IkArucoExampleNode(HelloNode):
         super().__init__()
         self.main("ik_aruco_example_node", "ik_aruco_example_node", wait_for_first_pointcloud=False)
         self.ik = StretchIkRos(self, tool_name="tool_stretch_dex_wrist")
-        self.target_marker_pub = self.create_publisher(Marker, "ik_target_marker", 10)
 
-    def _publish_line_marker(self, start_point, end_point, frame_id="base_link"):
-        marker = Marker()
-        marker.header.frame_id = frame_id
-        marker.header.stamp = self.get_clock().now().to_msg()
-        marker.ns = "ik_aruco_path"
-        marker.id = 0
-        marker.type = Marker.LINE_STRIP
-        marker.action = Marker.ADD
-        marker.scale.x = 0.01
-        marker.color.r = 0.2
-        marker.color.g = 0.4
-        marker.color.b = 0.9
-        marker.color.a = 0.9
-        marker.lifetime = Duration(seconds=20.0).to_msg()
-
-        start = Point()
-        start.x = float(start_point[0])
-        start.y = float(start_point[1])
-        start.z = float(start_point[2])
-        end = Point()
-        end.x = float(end_point[0])
-        end.y = float(end_point[1])
-        end.z = float(end_point[2])
-        marker.points = [start, end]
-
-        self.target_marker_pub.publish(marker)
-
-    def _publish_target_marker(self, target_point, frame_id="base_link"):
-        marker = Marker()
-        marker.header.frame_id = frame_id
-        marker.header.stamp = self.get_clock().now().to_msg()
-        marker.ns = "ik_aruco_target"
-        marker.id = 0
-        marker.type = Marker.SPHERE
-        marker.action = Marker.ADD
-        marker.pose.position.x = float(target_point[0])
-        marker.pose.position.y = float(target_point[1])
-        marker.pose.position.z = float(target_point[2])
-        marker.pose.orientation.w = 1.0
-        marker.scale.x = 0.05
-        marker.scale.y = 0.05
-        marker.scale.z = 0.05
-        marker.color.r = 0.2
-        marker.color.g = 0.8
-        marker.color.b = 0.2
-        marker.color.a = 0.9
-        marker.lifetime = Duration(seconds=10.0).to_msg()
-        self.target_marker_pub.publish(marker)
-
-    def _find_first_aruco_target(self, base_frame="base_link"):
-        if not TARGET_ARUCO_IDS:
-            self.get_logger().warn("TARGET_ARUCO_IDS is empty; no tags to search for.")
+    def _find_first_aruco_target(self, target_id, timeout=None, base_frame="base_link"):
+        if target_id is None:
+            self.get_logger().warn("target_id is None")
             return None, None
-        search_ids = list(TARGET_ARUCO_IDS)
-        while rclpy.ok():
+        tag_frame = f"aruco_tag_{target_id}"
+        timeout_time = time.time() + timeout if timeout is not None else None
+        while rclpy.ok() and (timeout_time is None or time.time() < timeout_time):
             # time.sleep(2) # Wait 2 seconds before trying again, just cuz i felt like it
-            for marker_id in search_ids:
-                tag_frame = f"aruco_tag_{marker_id}"
+            tag_to_base, _ = get_p1_to_p2_matrix(
+                tag_frame,
+                base_frame,
+                self.tf2_buffer,
+                timeout_s=0.05,
+                verbose=False,
+            )
+            if tag_to_base is None:
+                rclpy.spin_once(self, timeout_sec=0.1)
+                continue
+            target_point = (tag_to_base @ np.array([0.0, 0.0, 0.0, 1.0]))[:3]
+            return target_id, target_point
+        return None, None
+
+
+    def pan_and_search(self, target_id, timeout=None):
+        timeout_time = time.time() + timeout if timeout is not None else None
+        head_pan_angles = np.linspace(-np.pi / 4, 3 * np.pi / 4, num=10)
+        tag_frame = f"aruco_tag_{target_id}"
+        while rclpy.ok() and (timeout_time is None or time.time() < timeout_time):
+            for head_pan in head_pan_angles:
+                self.set_joint_poses([("head_pan", head_pan)])
+                rclpy.spin_once(self, timeout_sec=0.5)
                 tag_to_base, _ = get_p1_to_p2_matrix(
                     tag_frame,
-                    base_frame,
+                    "base_link",
                     self.tf2_buffer,
                     timeout_s=0.05,
                     verbose=False,
@@ -93,8 +64,7 @@ class IkArucoExampleNode(HelloNode):
                 if tag_to_base is None:
                     continue
                 target_point = (tag_to_base @ np.array([0.0, 0.0, 0.0, 1.0]))[:3]
-                return marker_id, target_point
-            rclpy.spin_once(self, timeout_sec=0.1)
+                return target_id, target_point
         return None, None
 
     def run_once(self):
@@ -102,29 +72,33 @@ class IkArucoExampleNode(HelloNode):
 
         answer = input("Open gripper AND move wrist? [y/N]: ").strip().lower()
         if answer.startswith("y"):
-            self.set_joint_poses([("stretch_gripper", GRIPPER_OPEN)])
-            self.set_joint_poses([("wrist_pitch", -0.8)])
-            self.set_joint_poses([("wrist_roll", 0.0)])
+            # self.set_joint_poses([("stretch_gripper", GRIPPER_OPEN)])
+            # self.set_joint_poses([("wrist_pitch", -0.8)])
+            # self.set_joint_poses([("wrist_roll", 0.0)])
+            self.set_joint_poses([("stretch_gripper", GRIPPER_OPEN), ("wrist_pitch", -0.8), ("wrist_roll", 0.0)])
             time.sleep(0.5)
+        else:
+            print("returning early")
+            return
+        
+        print("Searching for first aruco target...")
 
-        marker_id, target_point = self._find_first_aruco_target()
+        marker_id, target_point = self.pan_and_search(target_id=TARGET_ARUCO_IDS[0], timeout=30.0)
+
+        print(f"Pan and search result: marker_id={marker_id}, target_point={target_point}")
+        time.sleep(1.0)
+
+        marker_id, target_point = self._find_first_aruco_target(target_id=TARGET_ARUCO_IDS[0])
         if target_point is None:
             # self.get_logger().warn("No aruco_tag_* frame found in TF.")
             return
 
         q_init = self.ik.get_current_configuration(tool_name="tool_stretch_dex_wrist")
-        current_point = self.ik.chain.forward_kinematics(q_init)[:3, 3]
-        self._publish_target_marker(target_point)
-        self._publish_line_marker(current_point, target_point)
-        rclpy.spin_once(self, timeout_sec=0.1)
 
         # print target point
         print(f"Target point: {target_point}")
 
         # add a little z offset to avoid colliding with the table
-        ######## NOTE: This is way too huge, this is because current ArUCo detection is like very bad
-        # I will be adding depth to the aruco detection over the weekend so we dont need horribly huge manual offsets
-        # this will not work (will be too high) with the actual accurate aruco pose
         target_point[2] += 0.1
 
         # print target point again
@@ -165,6 +139,7 @@ class IkArucoExampleNode(HelloNode):
             self.get_logger().info("Skipping move.")
             return
 
+        # move for pickup
         if error < 0.5:
             self.ik.move_to_configuration(q_soln, tool_name="tool_stretch_dex_wrist")
 
@@ -176,11 +151,63 @@ class IkArucoExampleNode(HelloNode):
             if answer.startswith("y"):
                 self.set_joint_poses([("stretch_gripper", GRIPPER_CLOSED)])
 
-            answer = input("Move lift down a bit? [y/N]: ").strip().lower()
+            answer = input("Move lift up a bit? [y/N]: ").strip().lower()
             if answer.startswith("y"):
                 self.set_joint_poses([("lift", self.ik._get_q_value(q_soln, 'joint_lift'))])
         else:
             self.get_logger().warn("IK solution outside tolerance")
+
+        answer = input(f"start search for next aruco tag? [y/N]: ").strip().lower()
+        if not answer.startswith("y"):
+            self.get_logger().info("Skipping move.")
+            return
+
+        marker_id, next_target_point = self.pan_and_search(target_id=TARGET_ARUCO_IDS[1], timeout=30.0)
+
+        print(f"Pan and search result: marker_id={marker_id}, target_point={next_target_point}")
+        time.sleep(1.0)
+
+        next_marker_id, next_target_point = self._find_first_aruco_target(target_id=TARGET_ARUCO_IDS[1])
+
+        answer = input(f"Place object on next aruco tag? [y/N]: ").strip().lower()
+        if not answer.startswith("y") or next_target_point is None:
+            self.get_logger().info("Smth went wrong, exiting.")
+            return
+
+        print(f"Next target point: {next_target_point}")
+        next_target_point[2] += 0.1
+        print(f"Next target point with z offset: {next_target_point}")
+
+        answer = input(f"Calculate ik for aruco_tag_{next_marker_id}? [y/N]: ").strip().lower()
+        if not answer.startswith("y"):
+            self.get_logger().info("Exiting.")
+            return
+
+        q_init = self.ik.get_current_configuration(tool_name="tool_stretch_dex_wrist")
+        q_soln = self.ik.solve_point_ik(
+            next_target_point,
+            q_init=q_init,
+            joint_bounds={"wrist_pitch": (-1.2, -0.5)},
+            fixed_joints=["base_translate", "base_rotate", "wrist_roll"],
+        )
+        error = self.ik.compute_position_error(q_soln, next_target_point)
+        self.get_logger().info(f"IK error: {error:.4f} m")
+
+        answer = input(f"Pre-rotate base? [y/N]: ").strip().lower()
+        if answer.startswith("y"):
+            self.set_joint_poses([("base_rotate", self.ik._get_q_value(q_soln, "joint_base_rotate"))])
+
+        answer = input(f"Move to aruco_tag_{next_marker_id}? [y/N]: ").strip().lower()
+        if not answer.startswith("y"):
+            self.get_logger().info("Skipping move.")
+            return
+
+        if error < 0.5:
+            self.ik.move_to_configuration(q_soln, tool_name="tool_stretch_dex_wrist")
+        else:
+            self.get_logger().warn("IK solution outside tolerance")
+        
+
 
 
 def main():

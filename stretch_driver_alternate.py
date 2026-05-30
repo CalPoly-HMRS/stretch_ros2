@@ -1115,7 +1115,8 @@ class StretchDriver(Node):
 
         self.create_subscription(Float64MultiArray, "joint_pose_cmd", self.set_robot_streaming_position_callback, 5, callback_group=self.main_group)
 
-        self.create_subscription(Float64MultiArray, "joint_velocity_cmd", self.set_robot_streaming_velocity_callback, 1, callback_group=self.main_group)
+        # TODO: figure out a better way to handle the subscription queue for pose and velocity cuz lowk this is a bad solution for now
+        self.create_subscription(Float64MultiArray, "joint_velocity_cmd", self.set_robot_streaming_velocity_callback, 5, callback_group=self.main_group)
 
         # TODO: look at increasing to 60Hz
         self.declare_parameter('rate', 30.0)
