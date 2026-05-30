@@ -224,14 +224,9 @@ class IkArucoExampleNode(HelloNode):
             print(f"Base rotate solution: {base_rotate_soln:.3f} rad")
             self.set_joint_poses([("base_rotate", self.ik._get_q_value(q_soln, "base_rotate"))])
 
-        # recalculate ik after rotating base because otherwise itll move the base again
-        q_init = self.ik.get_current_configuration(tool_name="tool_stretch_dex_wrist")
-        q_soln = self.ik.solve_point_ik(
-            next_target_point,
-            q_init=q_init,
-            joint_bounds={"wrist_pitch": (-1.2, -0.5)},
-            fixed_joints=["base_translate", "base_rotate", "wrist_roll"],
-        )
+        # set base rotation to 0 in q_soln because base movement is relative and we already did it
+        # so this makes sure it doesnt happen again
+        self.ik._set_q_value(q_soln, "base_rotate", 0.0)
 
         answer = input(f"Move to aruco_tag_{next_marker_id}? [y/N]: ").strip().lower()
         if not answer.startswith("y"):
