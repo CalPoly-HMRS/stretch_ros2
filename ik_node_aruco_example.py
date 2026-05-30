@@ -213,14 +213,25 @@ class IkArucoExampleNode(HelloNode):
             next_target_point,
             q_init=q_init,
             joint_bounds={"wrist_pitch": (-1.2, -0.5)},
-            fixed_joints=["base_translate", "base_rotate", "wrist_roll"],
+            fixed_joints=["base_translate", "wrist_roll"],
         )
         error = self.ik.compute_position_error(q_soln, next_target_point)
         self.get_logger().info(f"IK error: {error:.4f} m")
 
         answer = input(f"Pre-rotate base? [y/N]: ").strip().lower()
         if answer.startswith("y"):
+            base_rotate_soln = self.ik._get_q_value(q_soln, "base_rotate")
+            print(f"Base rotate solution: {base_rotate_soln:.3f} rad")
             self.set_joint_poses([("base_rotate", self.ik._get_q_value(q_soln, "base_rotate"))])
+
+        # recalculate ik after rotating base because otherwise itll move the base again
+        q_init = self.ik.get_current_configuration(tool_name="tool_stretch_dex_wrist")
+        q_soln = self.ik.solve_point_ik(
+            next_target_point,
+            q_init=q_init,
+            joint_bounds={"wrist_pitch": (-1.2, -0.5)},
+            fixed_joints=["base_translate", "base_rotate", "wrist_roll"],
+        )
 
         answer = input(f"Move to aruco_tag_{next_marker_id}? [y/N]: ").strip().lower()
         if not answer.startswith("y"):
