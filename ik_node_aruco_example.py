@@ -220,7 +220,7 @@ class IkArucoExampleNode(HelloNode):
 
         answer = input(f"Pre-rotate base? [y/N]: ").strip().lower()
         if answer.startswith("y"):
-            self.set_joint_poses([("base_rotate", self.ik._get_q_value(q_soln, "joint_base_rotate"))])
+            self.set_joint_poses([("base_rotate", self.ik._get_q_value(q_soln, "base_rotate"))])
 
         answer = input(f"Move to aruco_tag_{next_marker_id}? [y/N]: ").strip().lower()
         if not answer.startswith("y"):
