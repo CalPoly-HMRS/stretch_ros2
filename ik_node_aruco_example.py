@@ -23,6 +23,22 @@ class IkArucoExampleNode(HelloNode):
         self.main("ik_aruco_example_node", "ik_aruco_example_node", wait_for_first_pointcloud=False)
         self.ik = StretchIkRos(self, tool_name="tool_stretch_dex_wrist")
 
+    def _wait_for_head_pan(self, target_pan, timeout_s=2.0, tolerance=0.03):
+        end_time = time.time() + timeout_s
+        while time.time() < end_time and rclpy.ok():
+            rclpy.spin_once(self, timeout_sec=0.05)
+            rclpy.spin_once(self, timeout_sec=0.05)
+            rclpy.spin_once(self, timeout_sec=0.05)
+            rclpy.spin_once(self, timeout_sec=0.05)
+            # run to get the latest joint state because im too lazy to multithread and its only one callback per spin
+            if not self.joint_state or not self.joint_state.name:
+                print("bro this should not be happening")
+                continue
+            current_pan = self.joint_state.position[self.joint_state.name.index("joint_head_pan")]
+            if abs(current_pan - target_pan) <= tolerance:
+                return True
+        return False
+
     def _find_first_aruco_target(self, target_id, timeout=None, base_frame="base_link"):
         if target_id is None:
             self.get_logger().warn("target_id is None")
@@ -54,6 +70,7 @@ class IkArucoExampleNode(HelloNode):
             for head_pan in head_pan_angles:
                 self.set_joint_poses([("head_pan", head_pan)])
                 rclpy.spin_once(self, timeout_sec=0.5)
+                self._wait_for_head_pan(head_pan)
                 tag_to_base, _ = get_p1_to_p2_matrix(
                     tag_frame,
                     "base_link",
@@ -65,6 +82,8 @@ class IkArucoExampleNode(HelloNode):
                     if time.time() >= timeout_time:
                         self.get_logger().warn(f"Timeout reached while searching for aruco_tag_{target_id}")
                         return None, None
+                    rclpy.spin_once(self, timeout_sec=0.1)
+                    rclpy.spin_once(self, timeout_sec=0.1)
                     rclpy.spin_once(self, timeout_sec=0.1)
                     time.sleep(0.5)
                     rclpy.spin_once(self, timeout_sec=0.1)
