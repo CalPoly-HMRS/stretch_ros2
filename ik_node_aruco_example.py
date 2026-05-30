@@ -11,7 +11,7 @@ from hello_misc import HelloNode, get_p1_to_p2_matrix
 from ik_class import StretchIkRos
 
 # First tag is the object to pick up, second tag is the target place to put it
-TARGET_ARUCO_IDS = [0, 1]
+TARGET_ARUCO_IDS = [0, 3]
 
 GRIPPER_OPEN = 0.6
 GRIPPER_CLOSED = 0.1
@@ -62,6 +62,10 @@ class IkArucoExampleNode(HelloNode):
                     verbose=False,
                 )
                 if tag_to_base is None:
+                    if time.time() >= timeout_time:
+                        self.get_logger().warn(f"Timeout reached while searching for aruco_tag_{target_id}")
+                        return None, None
+                    time.sleep(0.5)
                     continue
                 target_point = (tag_to_base @ np.array([0.0, 0.0, 0.0, 1.0]))[:3]
                 return target_id, target_point

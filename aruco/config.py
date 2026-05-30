@@ -5,7 +5,7 @@ from __future__ import annotations
 # ArUco IDs to track, in priority order.
 # Example: [23, 42, 7] means track ID 23 first, then 42, then 7 if visible.
 # Set to [] to track the first detected marker of any ID.
-TARGET_TAG_IDS: list[int] = [0, 1, 2]
+TARGET_TAG_IDS: list[int] = [0, 1, 2, 3]
 
 # Marker size in meters (50mm = 0.05m)
 MARKER_SIZE_M: float = 0.05
